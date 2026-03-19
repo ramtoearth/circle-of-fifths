@@ -1,14 +1,12 @@
 use serde::{Deserialize, Serialize};
 use yew::Reducible;
 
-use crate::music_theory::{
-    Key, DiatonicChord, ChordHighlight, diatonic_chords, Progression, ActiveProgression,
-};
+use crate::music_theory::{Key, DiatonicChord, ChordHighlight, diatonic_chords};
 
 // Re-export progression types that now live in music_theory, so that existing
 // imports from `crate::state` continue to compile.
 pub use crate::music_theory::{
-    ProgressionId, BorrowedChord, ProgressionTag,
+    ProgressionId, BorrowedChord, ProgressionTag, Progression, ActiveProgression,
 };
 
 // ─────────────────────────── Quiz / app-level types ──────────────────────────

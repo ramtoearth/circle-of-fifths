@@ -80,7 +80,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
     - **Validates: Requirements 4.2**
     - _Depends on: 4_
 
-- [ ] 5. App state reducer
+- [x] 5. App state reducer
   - Implement `app_reducer(state: AppState, action: AppAction) -> AppState` in `src/state/mod.rs`
   - Handle all `AppAction` variants: `SelectKey`, `DeselectKey`, `SelectChord`, `SelectProgression`, `NextChord`, `PrevChord`, `ToggleFavorite`, `ToggleNoteLabels`, `ShiftOctave`, `ToggleTheme`, `ToggleMute`, `EnterQuiz`, `ExitQuiz`, `RecordQuizResult`
   - Clamp `octave_offset` to valid range (-2..=2)
@@ -88,57 +88,57 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - _Requirements: 1.2, 1.6, 3.3, 4.3, 4.4, 4.5, 5.5, 5.6, 6.1, 7.7, 8.2_
   - _Depends on: 2, 3, 4_
 
-  - [ ]* 5.1 Write property test for segment selection (Property 1)
+  - [x]* 5.1 Write property test for segment selection (Property 1)
     - **Property 1: Segment selection state transition**
     - **Validates: Requirements 1.2**
     - _Depends on: 5_
 
-  - [ ]* 5.2 Write property test for segment deselection round-trip (Property 2)
+  - [x]* 5.2 Write property test for segment deselection round-trip (Property 2)
     - **Property 2: Segment deselection round-trip**
     - **Validates: Requirements 1.6**
     - _Depends on: 5_
 
-  - [ ]* 5.3 Write property test for chord click updates piano highlight (Property 6)
+  - [x]* 5.3 Write property test for chord click updates piano highlight (Property 6)
     - **Property 6: Chord click updates piano highlight**
     - **Validates: Requirements 3.3, 5.3**
     - _Depends on: 5_
 
-  - [ ]* 5.4 Write property test for progression activation sets first chord (Property 9)
+  - [x]* 5.4 Write property test for progression activation sets first chord (Property 9)
     - **Property 9: Progression activation sets first chord**
     - **Validates: Requirements 4.3**
     - _Depends on: 5_
 
-  - [ ]* 5.5 Write property test for progression navigation round-trip (Property 10)
+  - [x]* 5.5 Write property test for progression navigation round-trip (Property 10)
     - **Property 10: Progression navigation round-trip**
     - **Validates: Requirements 4.4**
     - _Depends on: 5_
 
-  - [ ]* 5.6 Write property test for favorite toggle round-trip (Property 11)
+  - [x]* 5.6 Write property test for favorite toggle round-trip (Property 11)
     - **Property 11: Favorite toggle round-trip**
     - **Validates: Requirements 4.5**
     - _Depends on: 5_
 
-  - [ ]* 5.7 Write property test for note label toggle idempotence (Property 13)
+  - [x]* 5.7 Write property test for note label toggle idempotence (Property 13)
     - **Property 13: Note label toggle idempotence**
     - **Validates: Requirements 5.5**
     - _Depends on: 5_
 
-  - [ ]* 5.8 Write property test for octave shift round-trip (Property 14)
+  - [x]* 5.8 Write property test for octave shift round-trip (Property 14)
     - **Property 14: Octave shift round-trip**
     - **Validates: Requirements 5.6**
     - _Depends on: 5_
 
-  - [ ]* 5.9 Write property test for mute toggle round-trip (Property 20)
+  - [x]* 5.9 Write property test for mute toggle round-trip (Property 20)
     - **Property 20: Mute toggle round-trip**
     - **Validates: Requirements 7.7**
     - _Depends on: 5_
 
-  - [ ]* 5.10 Write property test for theme toggle round-trip (Property 21)
+  - [x]* 5.10 Write property test for theme toggle round-trip (Property 21)
     - **Property 21: Theme toggle round-trip**
     - **Validates: Requirements 8.2**
     - _Depends on: 5_
 
-  - [ ]* 5.11 Write unit tests for reducer state transitions
+  - [x]* 5.11 Write unit tests for reducer state transitions
     - Quiz mode entry/exit, octave clamp boundary, no-op navigation guard
     - _Requirements: 5.6, 6.1_
     - _Depends on: 5_
