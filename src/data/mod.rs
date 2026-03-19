@@ -98,6 +98,11 @@ pub fn format_progression(progression: &Progression) -> String {
     format!("{} = {}", romans.join(" - "), names.join(" - "))
 }
 
+/// Looks up a single progression by its ID.
+pub fn find_progression(id: ProgressionId) -> Option<Progression> {
+    all_progressions().into_iter().find(|p| p.id == id)
+}
+
 /// Return all curated progressions for a given major key.
 pub fn progressions_for_key(key: Key) -> Vec<Progression> {
     all_progressions().into_iter().filter(|p| p.key == key).collect()
