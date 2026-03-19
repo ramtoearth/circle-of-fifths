@@ -1,0 +1,25 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        # Install Rust toolchain
+        - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+        - source "$HOME/.cargo/env"
+        # Add the WASM compile target
+        - rustup target add wasm32-unknown-unknown
+        # Install Trunk (the Yew bundler)
+        - cargo install trunk
+    build:
+      commands:
+        - source "$HOME/.cargo/env"
+        - trunk build --release
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - /root/.cargo/registry/**/*
+      - /root/.cargo/git/**/*
+      - target/**/*
