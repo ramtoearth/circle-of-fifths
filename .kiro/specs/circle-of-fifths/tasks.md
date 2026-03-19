@@ -283,7 +283,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - Ask the user if questions arise before proceeding to wiring.
   - _Depends on: 8, 9, 10, 11, 12, 13, 14_
 
-- [ ] 16. Root App component and wiring
+- [x] 16. Root App component and wiring
   - Implement `App` in `src/components/app.rs`
   - Initialize `use_reducer` with `AppState` (seeded from `load_state()`)
   - Wire `use_effect` hooks to sync persisted fields to `localStorage` on state change
