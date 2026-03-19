@@ -294,7 +294,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - _Requirements: 1.2, 4.5, 7.4, 7.5, 7.8, 8.1, 8.3, 8.4_
   - _Depends on: 5, 6, 8, 9, 10, 11, 12, 13, 14_
 
-- [ ] 17. CSS and theme styling
+- [x] 17. CSS and theme styling
   - Write `index.css` with dark and light theme variables
   - Style all components: Circle segments (selected/adjacent/opposite states), KeyInfoPanel, ProgressionPanel, PianoPanel (key roles color-coded), NavBar, QuizPanel
   - Minimal design, no ads or third-party promotional content
