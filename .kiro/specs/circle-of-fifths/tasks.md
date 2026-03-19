@@ -251,24 +251,29 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
     - _Requirements: 6.1, 6.4, 6.5, 6.6_
     - _Depends on: 13_
 
-- [ ] 14. AudioEngine
+- [x] 14. AudioEngine
   - Implement `AudioEngine` struct in `src/audio/mod.rs` wrapping `web_sys::AudioContext`
   - `play_scale(key)`: schedule notes at 300ms intervals
   - `play_chord(notes)`: play all notes simultaneously
   - `play_progression(progression)`: play each chord for 1 second in sequence
   - `stop()` and `set_muted(bool)`
   - Degrade gracefully if `AudioContext::new()` fails; set `audio_error` in `AppState`
-  - Expose as Yew context
+  - Expose as Yew context via `AudioEngineHandle(Rc<RefCell<AudioEngine>>)`
+  - Added `AudioParam`, `AudioScheduledSourceNode`, `console` to web-sys features
+  - Pure helpers `scale_note_sequence`, `chord_note_sequence`, `progression_chord_sequences` extract testable logic
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8_
   - _Depends on: 2, 3_
 
-  - [ ]* 14.1 Write property test for audio note sequence correctness (Property 19)
+  - [x]* 14.1 Write property test for audio note sequence correctness (Property 19)
     - **Property 19: Audio note sequence correctness**
     - **Validates: Requirements 7.1, 7.2, 7.3**
+    - Tests all 12 major + 12 minor keys for scale sequences; all progressions 0–47 for chord order
     - _Depends on: 14_
 
-  - [ ]* 14.2 Write unit tests for audio engine degraded mode
+  - [x]* 14.2 Write unit tests for audio engine degraded mode
     - Initialization failure sets `audio_error`, all non-audio features remain functional
+    - `new_degraded()` constructor; play/stop methods verified not to panic in degraded + muted states
+    - `pitch_to_freq` validated for A4=440 Hz, C4≈261.63 Hz, octave doubling invariant
     - _Requirements: 7.5_
     - _Depends on: 14_
 
