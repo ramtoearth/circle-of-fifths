@@ -213,7 +213,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
     - _Requirements: 5.1_
     - _Depends on: 11_
 
-- [ ] 12. NavBar component
+- [x] 12. NavBar component
   - Implement `NavBar` in `src/components/nav_bar.rs`
   - Theme toggle button (dispatches `ToggleTheme`)
   - Mute toggle button (dispatches `ToggleMute`)
