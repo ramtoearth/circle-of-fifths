@@ -46,6 +46,7 @@ pub struct AppState {
     pub octave_offset: i8,
     pub theme: Theme,
     pub muted: bool,
+    pub bpm: u32,
     pub quiz_active: bool,
     pub best_scores: BestScores,
     pub audio_error: Option<String>,
@@ -62,6 +63,7 @@ impl Default for AppState {
             octave_offset: 0,
             theme: Theme::Dark,
             muted: false,
+            bpm: 120,
             quiz_active: false,
             best_scores: BestScores::default(),
             audio_error: None,
@@ -94,6 +96,7 @@ pub enum AppAction {
     ExitQuiz,
     RecordQuizResult(SessionResult),
     SetAudioError(Option<String>),
+    SetBpm(u32),
 }
 
 // ─────────────────────────── Constants ───────────────────────────────────────
@@ -283,6 +286,8 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             audio_error: err,
             ..state
         },
+
+        AppAction::SetBpm(bpm) => AppState { bpm, ..state },
     }
 }
 

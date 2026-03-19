@@ -66,6 +66,7 @@ fn white_keys_before_in_octave(semitone_idx: usize) -> usize {
 pub struct PianoPanelProps {
     pub selected_key: Option<Key>,
     pub highlighted_chord: Option<ChordHighlight>,
+    pub playing_note: Option<(PitchClass, i32)>,
     pub show_labels: bool,
     /// Offset from the base octave (C3). Clamped to -2..=2 by the reducer.
     pub octave_offset: i8,
@@ -116,7 +117,8 @@ pub fn piano_panel(props: &PianoPanelProps) -> Html {
                 KeyRole::None      => "",
             };
             let type_cls = if black { "piano-key--black" } else { "piano-key--white" };
-            let classes = format!("piano-key {} {}", type_cls, role_cls);
+            let playing_cls = if props.playing_note == Some((pitch, octave_num as i32)) { "piano-key--playing" } else { "" };
+            let classes = format!("piano-key {} {} {}", type_cls, role_cls, playing_cls);
             let show_labels = props.show_labels;
 
             html! {

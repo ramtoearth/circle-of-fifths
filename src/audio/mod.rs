@@ -31,6 +31,32 @@ pub fn chord_note_sequence(notes: &[PitchClass]) -> Vec<PitchClass> {
     notes.to_vec()
 }
 
+/// Returns (PitchClass, octave) pairs for all 8 scale notes (root to root one octave up).
+/// Used to drive octave-aware visual highlights in the UI.
+pub fn scale_note_sequence_with_octaves(key: Key) -> Vec<(PitchClass, i32)> {
+    let notes = scale_note_sequence(key);
+    let mut result = Vec::with_capacity(8);
+    let mut octave = 4i32;
+    let mut prev_semitone = notes.first().map(|p| p.to_index() as i32 - 1).unwrap_or(-1);
+    for &pitch in &notes {
+        let semitone = pitch.to_index() as i32;
+        if semitone <= prev_semitone {
+            octave += 1;
+        }
+        prev_semitone = semitone;
+        result.push((pitch, octave));
+    }
+    // 8th note: root one octave up
+    if let Some(&root) = notes.first() {
+        let root_semitone = root.to_index() as i32;
+        if root_semitone <= prev_semitone {
+            octave += 1;
+        }
+        result.push((root, octave));
+    }
+    result
+}
+
 /// Returns, in order, the notes of each chord in a progression.
 /// Validates Property 19 (progression portion).
 pub fn progression_chord_sequences(progression: &Progression) -> Vec<Vec<PitchClass>> {
@@ -94,9 +120,9 @@ impl AudioEngine {
         self.muted
     }
 
-    /// Play all 7 scale notes in ascending order, one note per 300 ms.
+    /// Play all 8 scale notes (root to root one octave up) in ascending order at the given BPM.
     /// Requirement 7.1
-    pub fn play_scale(&self, key: Key) {
+    pub fn play_scale(&self, key: Key, bpm: u32) {
         if self.muted {
             return;
         }
@@ -105,14 +131,34 @@ impl AudioEngine {
             let _ = ctx.resume();
             let notes = scale_note_sequence(key);
             let now = ctx.current_time();
+            let interval = 60.0 / bpm as f64;
+            let duration = interval * 0.85;
+            let mut octave = 4i32;
+            let mut prev_semitone = notes.first().map(|p| p.to_index() as i32 - 1).unwrap_or(-1);
             for (i, &pitch) in notes.iter().enumerate() {
-                let start = now + (i as f64) * 0.3;
-                let freq = pitch_to_freq(pitch, 4);
-                self.schedule_note(ctx, freq, start, 0.25);
+                let semitone = pitch.to_index() as i32;
+                if semitone <= prev_semitone {
+                    octave += 1;
+                }
+                prev_semitone = semitone;
+                let start = now + (i as f64) * interval;
+                let freq = pitch_to_freq(pitch, octave);
+                self.schedule_note(ctx, freq, start, duration);
+            }
+            // 8th note: root one octave up to complete the scale
+            if !notes.is_empty() {
+                let root = notes[0];
+                let root_semitone = root.to_index() as i32;
+                if root_semitone <= prev_semitone {
+                    octave += 1;
+                }
+                let start = now + 7.0 * interval;
+                let freq = pitch_to_freq(root, octave);
+                self.schedule_note(ctx, freq, start, duration);
             }
         }
         #[cfg(not(target_arch = "wasm32"))]
-        let _ = key;
+        let _ = (key, bpm);
     }
 
     /// Play all notes of a chord simultaneously.
@@ -223,8 +269,8 @@ impl AudioEngineHandle {
         self.0.borrow().error.clone()
     }
 
-    pub fn play_scale(&self, key: Key) {
-        self.0.borrow().play_scale(key);
+    pub fn play_scale(&self, key: Key, bpm: u32) {
+        self.0.borrow().play_scale(key, bpm);
     }
 
     pub fn play_chord(&self, notes: &[PitchClass]) {

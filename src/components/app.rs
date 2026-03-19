@@ -1,3 +1,4 @@
+use gloo_timers::callback::Timeout;
 use yew::prelude::*;
 
 use crate::audio::AudioEngineHandle;
@@ -28,6 +29,9 @@ pub fn app() -> Html {
 
     // ── Audio engine ─────────────────────────────────────────────────────────
     let audio = use_memo((), |_| AudioEngineHandle::new());
+
+    // Tracks which pitch+octave is currently being played in the scale animation
+    let playing_note = use_state(|| None::<(crate::music_theory::PitchClass, i32)>);
 
     // Sync audio error into state on mount
     {
@@ -69,9 +73,24 @@ pub fn app() -> Html {
     let on_segment_click = {
         let state = state.clone();
         let audio = audio.clone();
+        let playing_note = playing_note.clone();
         Callback::from(move |key| {
             if state.selected_key != Some(key) {
-                audio.play_scale(key);
+                audio.play_scale(key, state.bpm);
+                // Schedule per-note visual highlight to match audio playback
+                let notes = crate::audio::scale_note_sequence_with_octaves(key);
+                let interval_ms = (60_000.0 / state.bpm as f64) as u32;
+                for (i, &(pitch, octave)) in notes.iter().enumerate() {
+                    let playing_note = playing_note.clone();
+                    Timeout::new(i as u32 * interval_ms, move || {
+                        playing_note.set(Some((pitch, octave)));
+                    }).forget();
+                }
+                // Clear after all 8 notes
+                let playing_note = playing_note.clone();
+                Timeout::new(notes.len() as u32 * interval_ms, move || {
+                    playing_note.set(None);
+                }).forget();
             }
             state.dispatch(AppAction::SelectKey(key));
         })
@@ -170,6 +189,11 @@ pub fn app() -> Html {
         Callback::from(move |_| state.dispatch(AppAction::ToggleMute))
     };
 
+    let on_set_bpm = {
+        let state = state.clone();
+        Callback::from(move |bpm: u32| state.dispatch(AppAction::SetBpm(bpm)))
+    };
+
     let on_enter_quiz = {
         let state = state.clone();
         Callback::from(move |_| state.dispatch(AppAction::EnterQuiz))
@@ -200,6 +224,9 @@ pub fn app() -> Html {
             <NavBar
                 theme={state.theme}
                 muted={state.muted}
+                selected_key={state.selected_key}
+                bpm={state.bpm}
+                on_set_bpm={on_set_bpm}
                 on_toggle_theme={on_toggle_theme}
                 on_toggle_mute={on_toggle_mute}
                 on_enter_quiz={on_enter_quiz}
@@ -245,6 +272,7 @@ pub fn app() -> Html {
                 <PianoPanel
                     selected_key={state.selected_key}
                     highlighted_chord={state.highlighted_chord.clone()}
+                    playing_note={*playing_note}
                     show_labels={state.show_note_labels}
                     octave_offset={state.octave_offset}
                     on_toggle_labels={on_toggle_labels}

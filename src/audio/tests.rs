@@ -86,7 +86,7 @@ fn fresh_degraded_engine_is_not_muted() {
 fn degraded_engine_play_scale_does_not_panic() {
     let engine = AudioEngine::new_degraded("err".to_string());
     let key = Key::major(PitchClass::C);
-    engine.play_scale(key); // must not panic
+    engine.play_scale(key, 120); // must not panic
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn muted_engine_play_does_not_panic() {
     engine.set_muted(true);
     assert!(engine.is_muted());
     let key = Key::major(PitchClass::C);
-    engine.play_scale(key); // must not panic
+    engine.play_scale(key, 120); // must not panic
 }
 
 // ── Frequency helper ──────────────────────────────────────────────────────────
