@@ -165,7 +165,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - Ask the user if questions arise before proceeding to UI components.
   - _Depends on: 3, 4, 5, 6_
 
-- [ ] 8. CircleView SVG component
+- [x] 8. CircleView SVG component
   - Implement `CircleView` in `src/components/circle_view.rs`
   - Render 24 `<path>` arc segments (12 major outer, 12 minor inner) as inline SVG
   - Highlight selected segment, adjacent segments, and opposite segment with distinct CSS classes
@@ -174,7 +174,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
   - _Depends on: 2, 3, 5_
 
-- [ ] 9. KeyInfoPanel component
+- [x] 9. KeyInfoPanel component
   - Implement `KeyInfoPanel` in `src/components/key_info_panel.rs`
   - Show key name, key signature (count + note names), seven scale notes
   - List all 7 diatonic chords with Roman numeral + full chord name
