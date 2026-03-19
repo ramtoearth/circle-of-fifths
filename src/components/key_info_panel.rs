@@ -1,8 +1,8 @@
 use yew::prelude::*;
 
 use crate::music_theory::{
-    chord_name, diatonic_chords, key_signature, roman_numeral, scale_notes, DiatonicChord, Key,
-    Mode,
+    chord_name, diatonic_chords, key_signature, roman_numeral, scale_notes, ChordQuality,
+    DiatonicChord, Key, Mode,
 };
 
 #[derive(Properties, PartialEq)]
@@ -36,7 +36,7 @@ pub fn key_info_panel(props: &KeyInfoPanelProps) -> Html {
     // ── Key signature ─────────────────────────────────────────────────────────
     let sig = key_signature(key);
     let sig_label = if sig.sharps > 0 {
-        let names: Vec<&str> = sig.notes.iter().map(|n| n.name()).collect();
+        let names: Vec<&str> = sig.notes.iter().map(|n| n.sharp_name()).collect();
         format!(
             "{} sharp{}: {}",
             sig.sharps,
@@ -74,23 +74,45 @@ pub fn key_info_panel(props: &KeyInfoPanelProps) -> Html {
                 <h3 class="key-info-panel__section-title">{ "Scale Notes" }</h3>
                 <div class="key-info-panel__notes">
                     { notes.iter().map(|pc| html! {
-                        <span class="key-info-panel__note">{ pc.name() }</span>
+                        <span class="key-info-panel__note">{
+                            if sig.sharps > 0 { pc.sharp_name() } else { pc.name() }
+                        }</span>
                     }).collect::<Html>() }
                 </div>
             </section>
 
             <section class="key-info-panel__section">
                 <h3 class="key-info-panel__section-title">{ "Diatonic Chords" }</h3>
+                <div class="chord-legend">
+                    <span class="chord-legend__item">
+                        <span class="chord-badge chord-badge--major">{"Major"}</span>
+                        {" — happy, stable"}
+                    </span>
+                    <span class="chord-legend__item">
+                        <span class="chord-badge chord-badge--minor">{"Minor"}</span>
+                        {" — sad, emotional"}
+                    </span>
+                    <span class="chord-legend__item">
+                        <span class="chord-badge chord-badge--diminished">{"dim"}</span>
+                        {" — tense, unstable"}
+                    </span>
+                </div>
                 <ul class="key-info-panel__chords">
                     { chords.iter().map(|chord| {
                         let chord_for_cb = chord.clone();
                         let on_click = props.on_chord_click.reform(move |_: MouseEvent| chord_for_cb.clone());
                         let roman = roman_numeral(chord.degree, chord.quality);
                         let name  = chord_name(chord.root, chord.quality);
+                        let (quality_class, quality_label) = match chord.quality {
+                            ChordQuality::Major      => ("chord-badge--major",      "Major"),
+                            ChordQuality::Minor      => ("chord-badge--minor",      "Minor"),
+                            ChordQuality::Diminished => ("chord-badge--diminished", "dim"),
+                        };
                         html! {
                             <li class="key-info-panel__chord" onclick={ on_click }>
                                 <span class="key-info-panel__chord-roman">{ roman }</span>
                                 <span class="key-info-panel__chord-name">{ name }</span>
+                                <span class={classes!("chord-badge", quality_class)}>{ quality_label }</span>
                             </li>
                         }
                     }).collect::<Html>() }

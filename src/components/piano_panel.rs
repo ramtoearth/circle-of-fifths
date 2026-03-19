@@ -154,6 +154,20 @@ pub fn piano_panel(props: &PianoPanelProps) -> Html {
                     { format!("C{} – B{}", base_octave, base_octave + NUM_OCTAVES as i8 - 1) }
                 </span>
             </div>
+            <div class="piano-legend">
+                <span class="piano-legend__item">
+                    <span class="piano-legend__swatch piano-legend__swatch--root"></span>{"Root"}
+                </span>
+                <span class="piano-legend__item">
+                    <span class="piano-legend__swatch piano-legend__swatch--third"></span>{"3rd"}
+                </span>
+                <span class="piano-legend__item">
+                    <span class="piano-legend__swatch piano-legend__swatch--fifth"></span>{"5th"}
+                </span>
+                <span class="piano-legend__item">
+                    <span class="piano-legend__swatch piano-legend__swatch--scale"></span>{"Scale note"}
+                </span>
+            </div>
             <div class="piano-panel__keyboard" ref={container_ref}>
                 { key_elements }
             </div>

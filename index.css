@@ -334,6 +334,41 @@ svg text {
   color: var(--text);
 }
 
+/* ── Chord quality badges ───────────────────────────────────────────────────── */
+.chord-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: auto;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.chord-badge--major      { background: #d4a017; color: #1a1200; }
+.chord-badge--minor      { background: #5c6bc0; color: #fff; }
+.chord-badge--diminished { background: #a04040; color: #fff; }
+
+.light .chord-badge--major      { background: #ffe066; color: #5c3d00; }
+.light .chord-badge--minor      { background: #9fa8da; color: #1a237e; }
+.light .chord-badge--diminished { background: #ef9a9a; color: #7f0000; }
+
+/* ── Chord quality legend ───────────────────────────────────────────────────── */
+.chord-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.chord-legend__item {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* ── ProgressionPanel ───────────────────────────────────────────────────────── */
 .progression-panel {
   background: var(--surface);
@@ -567,6 +602,30 @@ svg text {
 }
 
 .piano-key--black .piano-key__label { color: #aaa; }
+
+/* ── Piano key-role color legend ───────────────────────────────────────────── */
+.piano-legend {
+  display: flex;
+  gap: 12px;
+  padding: 4px 8px 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.piano-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.piano-legend__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.piano-legend__swatch--root  { background: var(--role-root-white); }
+.piano-legend__swatch--third { background: var(--role-third-white); }
+.piano-legend__swatch--fifth { background: var(--role-fifth-white); }
+.piano-legend__swatch--scale { background: var(--role-scale-white); }
 
 /* ── QuizPanel ───────────────────────────────────────────────────────────────── */
 .quiz-panel {

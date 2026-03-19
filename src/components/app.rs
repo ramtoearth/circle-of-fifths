@@ -68,7 +68,13 @@ pub fn app() -> Html {
     // ── Callbacks ────────────────────────────────────────────────────────────
     let on_segment_click = {
         let state = state.clone();
-        Callback::from(move |key| state.dispatch(AppAction::SelectKey(key)))
+        let audio = audio.clone();
+        Callback::from(move |key| {
+            if state.selected_key != Some(key) {
+                audio.play_scale(key);
+            }
+            state.dispatch(AppAction::SelectKey(key));
+        })
     };
 
     let on_chord_click = {
@@ -82,17 +88,61 @@ pub fn app() -> Html {
 
     let on_progression_click = {
         let state = state.clone();
-        Callback::from(move |id: ProgressionId| state.dispatch(AppAction::SelectProgression(id)))
+        let audio = audio.clone();
+        Callback::from(move |id: ProgressionId| {
+            if let Some(ref p) = crate::data::find_progression(id) {
+                audio.play_progression(p);
+            }
+            state.dispatch(AppAction::SelectProgression(id));
+        })
     };
 
     let on_next = {
         let state = state.clone();
-        Callback::from(move |_| state.dispatch(AppAction::NextChord))
+        let audio = audio.clone();
+        Callback::from(move |_| {
+            if let Some(ref active) = state.active_progression {
+                if let Some(ref prog) = crate::data::find_progression(active.id) {
+                    let len = prog.chords.len();
+                    if len > 0 {
+                        let next_idx = (active.current_index + 1) % len;
+                        if let Some(&degree) = prog.chords.get(next_idx) {
+                            let chords = crate::music_theory::diatonic_chords(prog.key);
+                            if let Some(c) = chords.iter().find(|c| c.degree == degree) {
+                                audio.play_chord(&c.notes);
+                            }
+                        }
+                    }
+                }
+            }
+            state.dispatch(AppAction::NextChord);
+        })
     };
 
     let on_prev = {
         let state = state.clone();
-        Callback::from(move |_| state.dispatch(AppAction::PrevChord))
+        let audio = audio.clone();
+        Callback::from(move |_| {
+            if let Some(ref active) = state.active_progression {
+                if let Some(ref prog) = crate::data::find_progression(active.id) {
+                    let len = prog.chords.len();
+                    if len > 0 {
+                        let prev_idx = if active.current_index == 0 {
+                            len - 1
+                        } else {
+                            active.current_index - 1
+                        };
+                        if let Some(&degree) = prog.chords.get(prev_idx) {
+                            let chords = crate::music_theory::diatonic_chords(prog.key);
+                            if let Some(c) = chords.iter().find(|c| c.degree == degree) {
+                                audio.play_chord(&c.notes);
+                            }
+                        }
+                    }
+                }
+            }
+            state.dispatch(AppAction::PrevChord);
+        })
     };
 
     let on_favorite_toggle = {

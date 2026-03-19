@@ -125,7 +125,7 @@ impl PitchClass {
         PitchClass::from_index((self.to_index() + n) % 12)
     }
 
-    /// Returns canonical display name
+    /// Returns canonical display name (flat spelling for accidentals)
     pub fn name(self) -> &'static str {
         match self {
             PitchClass::C  => "C",
@@ -140,6 +140,18 @@ impl PitchClass {
             PitchClass::A  => "A",
             PitchClass::Bb => "B♭",
             PitchClass::B  => "B",
+        }
+    }
+
+    /// Returns sharp spelling for enharmonic notes (e.g. Gb → "F♯")
+    pub fn sharp_name(self) -> &'static str {
+        match self {
+            PitchClass::Db => "C♯",
+            PitchClass::Eb => "D♯",
+            PitchClass::Gb => "F♯",
+            PitchClass::Ab => "G♯",
+            PitchClass::Bb => "A♯",
+            other          => other.name(),
         }
     }
 }
