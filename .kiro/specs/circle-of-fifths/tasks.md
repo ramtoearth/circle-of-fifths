@@ -160,7 +160,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
     - _Requirements: 4.5, 8.3_
     - _Depends on: 6_
 
-- [ ] 7. Checkpoint — pure logic complete
+- [x] 7. Checkpoint — pure logic complete
   - Ensure all `cargo test` tests pass (music theory, reducer, data, storage)
   - Ask the user if questions arise before proceeding to UI components.
   - _Depends on: 3, 4, 5, 6_
