@@ -221,32 +221,33 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - _Requirements: 6.1, 7.7, 8.1, 8.2_
   - _Depends on: 2, 5_
 
-- [ ] 13. QuizPanel component
+- [x] 13. QuizPanel component
   - Implement `QuizPanel` in `src/components/quiz_panel.rs`
   - Full-screen modal/page with local session state (current question index, score)
   - Generate shuffled question pool covering all three `QuestionType` variants
   - Display question, accept answer input, show correct/incorrect feedback with correct answer reveal
   - Running score display during session; summary screen on session end
   - Exit button dispatches `ExitQuiz`; session end dispatches `RecordQuizResult`
+  - `SessionScores` struct tracks per-type correct/total counts and produces `SessionResult`
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
   - _Depends on: 2, 3, 5_
 
-  - [ ]* 13.1 Write property test for question pool completeness and shuffle (Property 15)
+  - [x]* 13.1 Write property test for question pool completeness and shuffle (Property 15)
     - **Property 15: Question pool completeness and shuffle**
     - **Validates: Requirements 6.2, 6.3**
     - _Depends on: 13_
 
-  - [ ]* 13.2 Write property test for answer evaluation correctness (Property 16)
+  - [x]* 13.2 Write property test for answer evaluation correctness (Property 16)
     - **Property 16: Answer evaluation correctness**
     - **Validates: Requirements 6.4**
     - _Depends on: 13_
 
-  - [ ]* 13.3 Write property test for score tracking invariant (Property 17)
+  - [x]* 13.3 Write property test for score tracking invariant (Property 17)
     - **Property 17: Score tracking invariant**
     - **Validates: Requirements 6.5, 6.6**
     - _Depends on: 13_
 
-  - [ ]* 13.4 Write unit tests for quiz state transitions
+  - [x]* 13.4 Write unit tests for quiz state transitions
     - Entry/exit transitions, answer submission, session summary
     - _Requirements: 6.1, 6.4, 6.5, 6.6_
     - _Depends on: 13_

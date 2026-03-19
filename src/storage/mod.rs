@@ -2,9 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::{AppState, BestScores, ProgressionId, Theme};
 
+#[allow(dead_code)]
 const KEY_THEME: &str = "cof_theme";
+#[allow(dead_code)]
 const KEY_MUTED: &str = "cof_muted";
+#[allow(dead_code)]
 const KEY_FAVORITES: &str = "cof_favorites";
+#[allow(dead_code)]
 const KEY_BEST_SCORES: &str = "cof_best_scores";
 
 /// The subset of `AppState` that is persisted to localStorage.
