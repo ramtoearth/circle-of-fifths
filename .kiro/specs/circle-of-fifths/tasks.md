@@ -183,7 +183,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
   - _Depends on: 2, 3_
 
-- [ ] 10. ProgressionPanel component
+- [x] 10. ProgressionPanel component
   - Implement `ProgressionPanel` in `src/components/progression_panel.rs`
   - List progressions for selected key with tag labels
   - Display Roman numeral sequence and resolved chord names for each progression
