@@ -1,0 +1,249 @@
+use serde::{Deserialize, Serialize};
+
+use crate::state::{AppState, BestScores, ProgressionId, Theme};
+
+const KEY_THEME: &str = "cof_theme";
+const KEY_MUTED: &str = "cof_muted";
+const KEY_FAVORITES: &str = "cof_favorites";
+const KEY_BEST_SCORES: &str = "cof_best_scores";
+
+/// The subset of `AppState` that is persisted to localStorage.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PersistedState {
+    pub theme: Theme,
+    pub muted: bool,
+    pub favorites: Vec<ProgressionId>,
+    pub best_scores: BestScores,
+}
+
+impl Default for PersistedState {
+    fn default() -> Self {
+        Self {
+            theme: Theme::Dark,
+            muted: false,
+            favorites: Vec::new(),
+            best_scores: BestScores::default(),
+        }
+    }
+}
+
+// --- Pure (de)serialization helpers — testable without WASM ---
+
+pub fn serialize_theme(theme: Theme) -> String {
+    match theme {
+        Theme::Dark => "dark".to_string(),
+        Theme::Light => "light".to_string(),
+    }
+}
+
+pub fn deserialize_theme(s: &str) -> Theme {
+    match s {
+        "light" => Theme::Light,
+        _ => Theme::Dark,
+    }
+}
+
+pub fn serialize_muted(muted: bool) -> String {
+    if muted { "true".to_string() } else { "false".to_string() }
+}
+
+pub fn deserialize_muted(s: &str) -> bool {
+    s == "true"
+}
+
+pub fn serialize_favorites(favorites: &[ProgressionId]) -> String {
+    serde_json::to_string(favorites).unwrap_or_else(|_| "[]".to_string())
+}
+
+pub fn deserialize_favorites(s: &str) -> Vec<ProgressionId> {
+    serde_json::from_str(s).unwrap_or_default()
+}
+
+pub fn serialize_best_scores(scores: &BestScores) -> String {
+    serde_json::to_string(scores).unwrap_or_else(|_| "{}".to_string())
+}
+
+pub fn deserialize_best_scores(s: &str) -> BestScores {
+    serde_json::from_str(s).unwrap_or_default()
+}
+
+// --- localStorage I/O (WASM only) ---
+
+#[cfg(target_arch = "wasm32")]
+fn local_storage() -> Option<web_sys::Storage> {
+    web_sys::window()?.local_storage().ok()?
+}
+
+#[cfg(target_arch = "wasm32")]
+fn ls_get(key: &str) -> Option<String> {
+    local_storage()?.get_item(key).ok()?
+}
+
+#[cfg(target_arch = "wasm32")]
+fn ls_set(key: &str, value: &str) {
+    if let Some(storage) = local_storage() {
+        let _ = storage.set_item(key, value);
+    }
+}
+
+/// Load persisted fields from localStorage. Falls back to defaults on any error.
+pub fn load_state() -> PersistedState {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let theme = ls_get(KEY_THEME)
+            .map(|s| deserialize_theme(&s))
+            .unwrap_or(Theme::Dark);
+        let muted = ls_get(KEY_MUTED)
+            .map(|s| deserialize_muted(&s))
+            .unwrap_or(false);
+        let favorites = ls_get(KEY_FAVORITES)
+            .map(|s| deserialize_favorites(&s))
+            .unwrap_or_default();
+        let best_scores = ls_get(KEY_BEST_SCORES)
+            .map(|s| deserialize_best_scores(&s))
+            .unwrap_or_default();
+        PersistedState { theme, muted, favorites, best_scores }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        PersistedState::default()
+    }
+}
+
+/// Persist the relevant fields of `AppState` to localStorage. Fails silently.
+pub fn save_state(state: &AppState) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        ls_set(KEY_THEME, &serialize_theme(state.theme));
+        ls_set(KEY_MUTED, &serialize_muted(state.muted));
+        ls_set(KEY_FAVORITES, &serialize_favorites(&state.favorites));
+        ls_set(KEY_BEST_SCORES, &serialize_best_scores(&state.best_scores));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = state; // no-op in non-WASM targets
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::BestScores;
+
+    // ------------------------------------------------------------------ //
+    // Feature: circle-of-fifths, Property 18: localStorage round-trip    //
+    // ------------------------------------------------------------------ //
+    //
+    // We test the serde round-trip of each persisted field against its
+    // string representation (the same values that would be written to and
+    // read from localStorage). No browser APIs are required.
+
+    #[test]
+    fn theme_round_trip_dark() {
+        let original = Theme::Dark;
+        let serialized = serialize_theme(original);
+        assert_eq!(serialized, "dark");
+        assert_eq!(deserialize_theme(&serialized), original);
+    }
+
+    #[test]
+    fn theme_round_trip_light() {
+        let original = Theme::Light;
+        let serialized = serialize_theme(original);
+        assert_eq!(serialized, "light");
+        assert_eq!(deserialize_theme(&serialized), original);
+    }
+
+    #[test]
+    fn muted_round_trip_true() {
+        let serialized = serialize_muted(true);
+        assert_eq!(serialized, "true");
+        assert_eq!(deserialize_muted(&serialized), true);
+    }
+
+    #[test]
+    fn muted_round_trip_false() {
+        let serialized = serialize_muted(false);
+        assert_eq!(serialized, "false");
+        assert_eq!(deserialize_muted(&serialized), false);
+    }
+
+    #[test]
+    fn favorites_round_trip_empty() {
+        let original: Vec<ProgressionId> = vec![];
+        let s = serialize_favorites(&original);
+        assert_eq!(deserialize_favorites(&s), original);
+    }
+
+    #[test]
+    fn favorites_round_trip_nonempty() {
+        let original: Vec<ProgressionId> = vec![1, 5, 42, 999];
+        let s = serialize_favorites(&original);
+        assert_eq!(deserialize_favorites(&s), original);
+    }
+
+    #[test]
+    fn best_scores_round_trip_default() {
+        let original = BestScores::default();
+        let s = serialize_best_scores(&original);
+        let decoded: BestScores = serde_json::from_str(&s).unwrap();
+        assert_eq!(decoded.key_sig, original.key_sig);
+        assert_eq!(decoded.relative_minor, original.relative_minor);
+        assert_eq!(decoded.scale_notes, original.scale_notes);
+    }
+
+    #[test]
+    fn best_scores_round_trip_with_values() {
+        let original = BestScores { key_sig: Some(10), relative_minor: Some(7), scale_notes: Some(12) };
+        let s = serialize_best_scores(&original);
+        let decoded: BestScores = serde_json::from_str(&s).unwrap();
+        assert_eq!(decoded.key_sig, original.key_sig);
+        assert_eq!(decoded.relative_minor, original.relative_minor);
+        assert_eq!(decoded.scale_notes, original.scale_notes);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Task 6.2 — storage error handling                                   //
+    // ------------------------------------------------------------------ //
+
+    #[test]
+    fn deserialize_theme_unknown_value_falls_back_to_dark() {
+        assert_eq!(deserialize_theme("garbage"), Theme::Dark);
+        assert_eq!(deserialize_theme(""), Theme::Dark);
+        assert_eq!(deserialize_theme("LIGHT"), Theme::Dark); // case-sensitive
+    }
+
+    #[test]
+    fn deserialize_muted_unknown_value_falls_back_to_false() {
+        assert_eq!(deserialize_muted("yes"), false);
+        assert_eq!(deserialize_muted("1"), false);
+        assert_eq!(deserialize_muted("True"), false);
+        assert_eq!(deserialize_muted(""), false);
+    }
+
+    #[test]
+    fn deserialize_favorites_invalid_json_falls_back_to_empty() {
+        let empty: Vec<ProgressionId> = vec![];
+        assert_eq!(deserialize_favorites("not-json"), empty);
+        assert_eq!(deserialize_favorites("{bad}"), empty);
+        assert_eq!(deserialize_favorites(""), empty);
+    }
+
+    #[test]
+    fn deserialize_best_scores_invalid_json_falls_back_to_default() {
+        let result = deserialize_best_scores("not-json");
+        assert_eq!(result.key_sig, None);
+        assert_eq!(result.relative_minor, None);
+        assert_eq!(result.scale_notes, None);
+    }
+
+    #[test]
+    fn load_state_returns_defaults_in_native_target() {
+        // In non-WASM builds, load_state() always returns defaults.
+        let state = load_state();
+        assert_eq!(state.theme, Theme::Dark);
+        assert_eq!(state.muted, false);
+        assert!(state.favorites.is_empty());
+        assert_eq!(state.best_scores.key_sig, None);
+    }
+}
