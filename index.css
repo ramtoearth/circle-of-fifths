@@ -141,6 +141,33 @@ body {
   min-width: 0;
 }
 
+/* Main layout used by app.rs */
+.main-layout {
+  display: flex;
+  flex: 1;
+  gap: 16px;
+  padding: 16px;
+  align-items: flex-start;
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Sticky piano footer */
+.piano-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding: 8px 16px 12px;
+}
+
 .app__piano { padding: 0 16px 16px; }
 
 .app__error {

@@ -191,14 +191,16 @@ pub fn app() -> Html {
                 </div>
             }
 
-            <PianoPanel
-                selected_key={state.selected_key}
-                highlighted_chord={state.highlighted_chord.clone()}
-                show_labels={state.show_note_labels}
-                octave_offset={state.octave_offset}
-                on_toggle_labels={on_toggle_labels}
-                on_octave_shift={on_octave_shift}
-            />
+            <div class="piano-footer">
+                <PianoPanel
+                    selected_key={state.selected_key}
+                    highlighted_chord={state.highlighted_chord.clone()}
+                    show_labels={state.show_note_labels}
+                    octave_offset={state.octave_offset}
+                    on_toggle_labels={on_toggle_labels}
+                    on_octave_shift={on_octave_shift}
+                />
+            </div>
         </div>
     }
 }
