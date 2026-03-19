@@ -193,7 +193,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
   - _Depends on: 2, 4, 5_
 
-- [ ] 11. PianoPanel component
+- [x] 11. PianoPanel component
   - Implement `PianoPanel` in `src/components/piano_panel.rs`
   - Render scrollable horizontal keyboard spanning ≥3 octaves (≥36 keys)
   - Highlight scale notes and chord notes color-coded by `KeyRole` (root/third/fifth)
@@ -203,12 +203,12 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
   - _Depends on: 2, 3, 5_
 
-  - [ ]* 11.1 Write property test for piano scale highlight correctness (Property 12)
+  - [x]* 11.1 Write property test for piano scale highlight correctness (Property 12)
     - **Property 12: Piano scale highlight correctness**
     - **Validates: Requirements 5.2**
     - _Depends on: 11_
 
-  - [ ]* 11.2 Write unit test for piano key count
+  - [x]* 11.2 Write unit test for piano key count
     - Verify rendered keyboard contains ≥36 keys for 3-octave range
     - _Requirements: 5.1_
     - _Depends on: 11_
