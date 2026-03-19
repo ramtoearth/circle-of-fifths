@@ -140,8 +140,8 @@ pub fn app() -> Html {
 
     // ── Theme class ──────────────────────────────────────────────────────────
     let theme_class = match state.theme {
-        Theme::Dark => "app theme-dark",
-        Theme::Light => "app theme-light",
+        Theme::Dark => "app",
+        Theme::Light => "app light",
     };
 
     // ── Render ───────────────────────────────────────────────────────────────
