@@ -62,7 +62,7 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
     - _Requirements: 2.1, 3.1_
     - _Depends on: 3_
 
-- [ ] 4. Static progression data
+- [x] 4. Static progression data
   - Define all progressions as `static` arrays in `src/data/mod.rs`
   - At least 4 progressions per key, covering ≥3 distinct `ProgressionTag` values
   - At least 1 progression per key with a non-None `borrowed_chord`
@@ -70,12 +70,12 @@ Tasks are grouped so that independent work streams are visible. Where tasks have
   - _Requirements: 4.1, 4.2, 4.6, 4.7_
   - _Depends on: 2, 3_
 
-  - [ ]* 4.1 Write property test for progression data invariants (Property 7)
+  - [x]* 4.1 Write property test for progression data invariants (Property 7)
     - **Property 7: Progression data invariants**
     - **Validates: Requirements 4.1, 4.6, 4.7**
     - _Depends on: 4_
 
-  - [ ]* 4.2 Write property test for progression display format (Property 8)
+  - [x]* 4.2 Write property test for progression display format (Property 8)
     - **Property 8: Progression display format**
     - **Validates: Requirements 4.2**
     - _Depends on: 4_
