@@ -726,4 +726,147 @@ mod tests {
         let final_idx = s.active_progression.unwrap().current_index;
         assert_eq!(final_idx, orig_idx);
     }
+
+    // ── MIDI reducer property tests (Task 2.1) ────────────────────────────
+
+    mod property_tests {
+        use super::*;
+        use crate::midi::{HeldNote, KeySuggestion, PlayAlongScore};
+        use proptest::prelude::*;
+
+        fn any_midi_note() -> impl Strategy<Value = u8> { 0u8..=127u8 }
+        fn any_velocity() -> impl Strategy<Value = u8> { 1u8..=127u8 }
+        fn any_bpm() -> impl Strategy<Value = u32> { 0u32..=400u32 }
+
+        fn make_note(midi_note: u8, velocity: u8) -> HeldNote {
+            HeldNote::from_midi(midi_note, velocity)
+        }
+
+        fn play_along_state_in(metronome: bool) -> AppState {
+            AppState {
+                app_mode: AppMode::PlayAlong,
+                metronome_active: true,
+                play_along_state: Some(PlayAlongState {
+                    progression_id: 0,
+                    current_chord_index: 0,
+                    score: PlayAlongScore::default(),
+                    started_at_ms: 0.0,
+                    pre_play_along_metronome_active: metronome,
+                }),
+                ..AppState::default()
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 1: NoteOn/NoteOff round-trip
+        proptest! {
+            #[test]
+            fn prop_note_on_off_round_trip(
+                note in any_midi_note(),
+                vel  in any_velocity(),
+            ) {
+                let s0 = AppState::default(); // empty held_notes
+                let s1 = app_reducer(s0.clone(), AppAction::MidiNoteOn(make_note(note, vel), 0.0));
+                let s2 = app_reducer(s1, AppAction::MidiNoteOff(note));
+                prop_assert_eq!(s2.held_notes, s0.held_notes,
+                    "held_notes should be unchanged after NoteOn+NoteOff for note {}", note);
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 4: Velocity=0 treated as NoteOff
+        proptest! {
+            #[test]
+            fn prop_velocity_zero_is_note_off(
+                note in any_midi_note(),
+                vel  in any_velocity(),
+            ) {
+                // Place the note in held_notes, then send NoteOn with velocity=0
+                let s0 = app_reducer(AppState::default(), AppAction::MidiNoteOn(make_note(note, vel), 0.0));
+                prop_assume!(s0.held_notes.iter().any(|n| n.midi_note == note));
+
+                let zero_note = HeldNote {
+                    midi_note: note,
+                    velocity: 0,
+                    pitch_class: crate::music_theory::PitchClass::from_index(note % 12),
+                    octave: (note / 12) as i8 - 1,
+                };
+                let s1 = app_reducer(s0, AppAction::MidiNoteOn(zero_note, 0.0));
+                prop_assert!(!s1.held_notes.iter().any(|n| n.midi_note == note),
+                    "note {} should be removed when velocity=0 NoteOn is dispatched", note);
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 11: ClearRollingWindow resets state
+        proptest! {
+            #[test]
+            fn prop_clear_rolling_window(
+                note in any_midi_note(),
+                vel  in any_velocity(),
+            ) {
+                // Build state with a non-empty rolling_window and key_suggestions
+                let s0 = app_reducer(
+                    AppState { key_suggestions: vec![KeySuggestion {
+                        key: crate::music_theory::Key::major(crate::music_theory::PitchClass::C),
+                        score: 5,
+                    }], ..AppState::default() },
+                    AppAction::MidiNoteOn(make_note(note, vel), 1000.0),
+                );
+                prop_assume!(!s0.rolling_window.is_empty());
+
+                let s1 = app_reducer(s0, AppAction::ClearRollingWindow);
+                prop_assert!(s1.rolling_window.is_empty(),
+                    "rolling_window should be empty after ClearRollingWindow");
+                prop_assert!(s1.key_suggestions.is_empty(),
+                    "key_suggestions should be empty after ClearRollingWindow");
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 12: Device disconnection clears held notes
+        proptest! {
+            #[test]
+            fn prop_empty_devices_clears_held_notes(
+                note in any_midi_note(),
+                vel  in any_velocity(),
+            ) {
+                let s0 = app_reducer(AppState::default(), AppAction::MidiNoteOn(make_note(note, vel), 0.0));
+                prop_assume!(!s0.held_notes.is_empty());
+
+                let s1 = app_reducer(s0, AppAction::MidiDevicesChanged(vec![]));
+                prop_assert!(s1.held_notes.is_empty(),
+                    "held_notes should be empty after MidiDevicesChanged([])");
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 15: BPM clamping
+        proptest! {
+            #[test]
+            fn prop_set_bpm_clamped(bpm in any_bpm()) {
+                let s = app_reducer(AppState::default(), AppAction::SetBpm(bpm));
+                prop_assert!(s.bpm >= 40 && s.bpm <= 200,
+                    "bpm {} should be clamped to [40, 200], got {}", bpm, s.bpm);
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 16: ExitPlayAlong resets mode
+        proptest! {
+            #[test]
+            fn prop_exit_play_along_resets_mode(metronome in any::<bool>()) {
+                let s0 = play_along_state_in(metronome);
+                let s1 = app_reducer(s0, AppAction::ExitPlayAlong);
+                prop_assert_eq!(s1.app_mode, AppMode::Normal);
+                prop_assert!(s1.play_along_state.is_none());
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 17: Metronome toggle round-trip
+        proptest! {
+            #[test]
+            fn prop_metronome_toggle_round_trip(initial in any::<bool>()) {
+                let s0 = AppState { metronome_active: initial, ..AppState::default() };
+                let s1 = app_reducer(s0.clone(), AppAction::ToggleMetronome);
+                let s2 = app_reducer(s1, AppAction::ToggleMetronome);
+                prop_assert_eq!(s2.metronome_active, s0.metronome_active,
+                    "metronome_active should be unchanged after two ToggleMetronome dispatches");
+            }
+        }
+    }
 }
