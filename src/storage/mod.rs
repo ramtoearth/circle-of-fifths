@@ -10,6 +10,8 @@ const KEY_MUTED: &str = "cof_muted";
 const KEY_FAVORITES: &str = "cof_favorites";
 #[allow(dead_code)]
 const KEY_BEST_SCORES: &str = "cof_best_scores";
+#[allow(dead_code)]
+const KEY_METRONOME_ACTIVE: &str = "cof_metronome_active";
 
 /// The subset of `AppState` that is persisted to localStorage.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -18,6 +20,7 @@ pub struct PersistedState {
     pub muted: bool,
     pub favorites: Vec<ProgressionId>,
     pub best_scores: BestScores,
+    pub metronome_active: bool,
 }
 
 impl Default for PersistedState {
@@ -27,6 +30,7 @@ impl Default for PersistedState {
             muted: false,
             favorites: Vec::new(),
             best_scores: BestScores::default(),
+            metronome_active: false,
         }
     }
 }
@@ -71,6 +75,14 @@ pub fn deserialize_best_scores(s: &str) -> BestScores {
     serde_json::from_str(s).unwrap_or_default()
 }
 
+pub fn serialize_metronome_active(active: bool) -> String {
+    if active { "true".to_string() } else { "false".to_string() }
+}
+
+pub fn deserialize_metronome_active(s: &str) -> bool {
+    s == "true"
+}
+
 // --- localStorage I/O (WASM only) ---
 
 #[cfg(target_arch = "wasm32")]
@@ -106,7 +118,10 @@ pub fn load_state() -> PersistedState {
         let best_scores = ls_get(KEY_BEST_SCORES)
             .map(|s| deserialize_best_scores(&s))
             .unwrap_or_default();
-        PersistedState { theme, muted, favorites, best_scores }
+        let metronome_active = ls_get(KEY_METRONOME_ACTIVE)
+            .map(|s| deserialize_metronome_active(&s))
+            .unwrap_or(false);
+        PersistedState { theme, muted, favorites, best_scores, metronome_active }
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -122,6 +137,7 @@ pub fn save_state(state: &AppState) {
         ls_set(KEY_MUTED, &serialize_muted(state.muted));
         ls_set(KEY_FAVORITES, &serialize_favorites(&state.favorites));
         ls_set(KEY_BEST_SCORES, &serialize_best_scores(&state.best_scores));
+        ls_set(KEY_METRONOME_ACTIVE, &serialize_metronome_active(state.metronome_active));
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -249,5 +265,28 @@ mod tests {
         assert_eq!(state.muted, false);
         assert!(state.favorites.is_empty());
         assert_eq!(state.best_scores.key_sig, None);
+        assert_eq!(state.metronome_active, false);
+    }
+
+    #[test]
+    fn metronome_active_round_trip_true() {
+        let serialized = serialize_metronome_active(true);
+        assert_eq!(serialized, "true");
+        assert_eq!(deserialize_metronome_active(&serialized), true);
+    }
+
+    #[test]
+    fn metronome_active_round_trip_false() {
+        let serialized = serialize_metronome_active(false);
+        assert_eq!(serialized, "false");
+        assert_eq!(deserialize_metronome_active(&serialized), false);
+    }
+
+    #[test]
+    fn deserialize_metronome_active_unknown_value_falls_back_to_false() {
+        assert_eq!(deserialize_metronome_active("yes"), false);
+        assert_eq!(deserialize_metronome_active("1"), false);
+        assert_eq!(deserialize_metronome_active("True"), false);
+        assert_eq!(deserialize_metronome_active(""), false);
     }
 }

@@ -84,11 +84,11 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 7.8_
   - _Depends on: None_
 
-- [ ] 5. Checkpoint — run `cargo test` and ensure all pure-Rust tests pass
+- [x] 5. Checkpoint — run `cargo test` and ensure all pure-Rust tests pass
   - Ensure all tests pass, ask the user if questions arise.
   - _Depends on: 2, 3, 4_
 
-- [ ] 6. Implement `MidiEngine` JS interop in `src/midi/mod.rs`
+- [x] 6. Implement `MidiEngine` JS interop in `src/midi/mod.rs`
   - Implement `MidiEngine::request_access(dispatch: Callback<AppAction>) -> Self` using `js_sys::Reflect` and `wasm_bindgen::closure::Closure` as described in the design
   - Implement `parse_midi_message(data: &[u8]) -> MidiEvent` — parse status byte, handle NoteOn/NoteOff/velocity=0
   - Implement `MidiEngine::register_ports(&self, dispatch: Callback<AppAction>)` — iterate `MIDIAccess.inputs`, set `onmidimessage` closure on each port
@@ -185,7 +185,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 7.2, 7.3, 7.5, 7.6, 7.9, 6.9_
   - _Depends on: 2, 10_
 
-- [ ] 13.6 Add `metronome_active` persistence to `src/storage/mod.rs`
+- [x] 13.6 Add `metronome_active` persistence to `src/storage/mod.rs`
   - Add `metronome_active: bool` field to `PersistedState` (default `false`)
   - Add `serialize_metronome_active(bool) -> String` and `deserialize_metronome_active(&str) -> bool` helpers
   - Wire into `load_state`: read `cof_metronome_active` key from localStorage
