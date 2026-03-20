@@ -42,7 +42,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Validates: Requirements 1.7, 2.1, 2.2, 2.5, 4.6, 6.2, 6.7, 7.1, 7.8_
   - _Depends on: 2_
 
-- [ ] 3. Implement chord recognition in `src/midi/mod.rs`
+- [x] 3. Implement chord recognition in `src/midi/mod.rs`
   - Define `CHORD_DICTIONARY` static array of `(name: &str, intervals: &[u8])` covering triads (major, minor, diminished, augmented) and seventh chords (maj7, min7, dom7, half-dim7, dim7)
   - Implement `recognize_chord(held: &[HeldNote], selected_key: Option<Key>) -> Option<RecognizedChord>` following the algorithm in the design (collect distinct PitchClasses, try all inversions, score by matching PitchClasses, tie-break by fewest extra notes)
   - Populate `roman_numeral` and `is_diatonic` fields when `selected_key` is `Some`
@@ -50,7 +50,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.6_
   - _Depends on: 1_
 
-- [ ]* 3.1 Write property tests for chord recognition
+- [x]* 3.1 Write property tests for chord recognition
   - **Property 5: Chord recognition requires 3+ distinct PitchClasses** — `recognize_chord` returns `None` for < 3 distinct PCs
   - **Property 6: Known chords recognized in all inversions** — all dictionary chords recognized in every inversion
   - **Property 7: Chord-in-key annotation correctness** — `roman_numeral` and `is_diatonic` correct for all key/chord combos

@@ -137,6 +137,8 @@ pub practice_target: Option<Vec<PitchClass>>,  // notes to match in practice/pla
 
 Each key renders with a `midi-held` CSS class when present in `held_notes`, with an inline `opacity` or `filter: brightness(...)` derived from velocity. Practice/play-along keys get `midi-correct` (green) or `midi-incorrect` (red) classes.
 
+Note: the `piano-key--playing` CSS class already exists in `index.css` (used for scale playback animation) and must not be re-added.
+
 ### PracticePanel (new component)
 
 Full-screen mode (similar to `QuizPanel`) for Practice Mode.
@@ -155,24 +157,28 @@ pub struct PracticePanelProps {
 
 Overlays the `ProgressionPanel` area when Play-Along Mode is active.
 
+BPM is read from `AppState.bpm` (passed as a prop) and is controlled exclusively via the NavBar slider — the panel does not own a BPM control or `on_bpm_change` callback.
+
 Props:
 ```rust
 pub struct PlayAlongPanelProps {
     pub progression: Progression,
     pub current_chord_index: usize,
-    pub bpm: u16,
+    pub bpm: u32,           // read from AppState.bpm; changed via NavBar slider only
     pub held_notes: Vec<HeldNote>,
     pub score: PlayAlongScore,
     pub on_stop: Callback<()>,
-    pub on_bpm_change: Callback<u16>,
 }
 ```
 
 ### NavBar (extended)
 
-Gains a "Practice" button, visible only when `midi_status == MidiStatus::Connected`, and a "Metronome" toggle button adjacent to the BPM slider. The BPM slider range is updated to 40–200 to align with the play-along spec.
+`NavBarProps` already has `selected_key: Option<Key>`, `bpm: u32`, and `on_set_bpm: Callback<u32>` fields, but `app.rs` does not yet pass these props. The task is to:
+1. Wire the missing `selected_key`, `bpm`, and `on_set_bpm` props in `app.rs`
+2. Fix the BPM slider range from `min="60" max="240"` to `min="40" max="200"`
+3. Add the new "Practice" button and "Metronome" toggle button
 
-New props added to `NavBarProps`:
+New props to add to `NavBarProps`:
 ```rust
 pub midi_status: MidiStatus,
 pub metronome_active: bool,
@@ -302,9 +308,10 @@ pub struct PracticeState {
 pub struct PlayAlongState {
     pub progression_id: ProgressionId,
     pub current_chord_index: usize,
-    pub bpm: u16,
+    // No bpm field — BPM is read from AppState.bpm (shared with NavBar slider and Metronome)
     pub score: PlayAlongScore,
     pub started_at_ms: f64,
+    pub pre_play_along_metronome_active: bool, // saved to restore on ExitPlayAlong
 }
 ```
 
@@ -320,10 +327,9 @@ ClearRollingWindow,
 EnterPractice,
 ExitPractice,
 PracticeAdvance,              // chord correctly played, advance to next
-EnterPlayAlong(ProgressionId, u16 /*bpm*/),
+EnterPlayAlong(ProgressionId),    // BPM comes from AppState.bpm
 ExitPlayAlong,
 PlayAlongTick,                // beat timer fires, advance chord
-PlayAlongSetBpm(u16),
 RecordPlayAlongChordResult(ChordResult),
 ToggleMetronome,              // flip metronome_active; persisted to localStorage
 ```
@@ -362,6 +368,8 @@ Input: rolling_window: Vec<(PitchClass, f64)>, now_ms: f64
 |-----|-------|
 | `midi_practice_scores` | JSON object with per-chord accuracy history |
 | `metronome_active` | `"true"` or `"false"` — persisted metronome toggle state |
+
+`metronome_active` must be added to `PersistedState` in `src/storage/mod.rs` along with corresponding `serialize_metronome_active` / `deserialize_metronome_active` helpers, and wired into `load_state` / `save_state`.
 
 No MIDI device preferences are persisted (device selection is automatic).
 
@@ -485,9 +493,9 @@ No MIDI device preferences are persisted (device selection is automatic).
 
 ### Property 15: BPM clamping
 
-*For any* BPM value passed to `PlayAlongSetBpm`, the resulting `play_along_state.bpm` must be clamped to the range [40, 200].
+*For any* BPM value passed to `SetBpm`, the resulting `AppState.bpm` must be clamped to the range [40, 200]. This is the single BPM field shared by the NavBar slider, the Metronome, and Play-Along Mode.
 
-**Validates: Requirements 6.2**
+**Validates: Requirements 6.2, 7.4, 7.8**
 
 ---
 
@@ -504,14 +512,6 @@ No MIDI device preferences are persisted (device selection is automatic).
 *For any* `AppState`, dispatching `ToggleMetronome` twice must produce a state where `metronome_active` equals its original value (idempotent double-toggle).
 
 **Validates: Requirement 7.1, 7.2, 7.3**
-
----
-
-### Property 18: BPM range invariant
-
-*For any* BPM value passed to `SetBpm`, the resulting `AppState.bpm` must be clamped to the range [40, 200]. This applies to both the NavBar slider and the play-along BPM control, which share the same `AppState.bpm` field.
-
-**Validates: Requirements 6.2, 7.4, 7.8**
 
 ---
 
