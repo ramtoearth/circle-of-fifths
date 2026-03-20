@@ -9,7 +9,6 @@ use crate::components::nav_bar::NavBar;
 use crate::components::piano_panel::PianoPanel;
 use crate::components::progression_panel::ProgressionPanel;
 use crate::components::play_along_panel::PlayAlongPanel;
-use crate::components::practice_panel::PracticePanel;
 use crate::midi::{detect_keys, recognize_chord, ChordResult, MidiEngine};
 use crate::music_theory::DiatonicChord;
 use crate::state::{AppAction, AppMode, AppState, ProgressionId, Theme};
@@ -259,11 +258,6 @@ pub fn app() -> Html {
         Callback::from(move |bpm: u32| state.dispatch(AppAction::SetBpm(bpm)))
     };
 
-    let on_enter_practice = {
-        let state = state.clone();
-        Callback::from(move |_| state.dispatch(AppAction::EnterPractice))
-    };
-
     let on_toggle_metronome = {
         let state = state.clone();
         Callback::from(move |_| state.dispatch(AppAction::ToggleMetronome))
@@ -291,16 +285,6 @@ pub fn app() -> Html {
         })
     };
 
-    let on_practice_exit = {
-        let state = state.clone();
-        Callback::from(move |_: ()| state.dispatch(AppAction::ExitPractice))
-    };
-
-    let on_practice_advance = {
-        let state = state.clone();
-        Callback::from(move |_: ()| state.dispatch(AppAction::PracticeAdvance))
-    };
-
     let on_clear_window = {
         let state = state.clone();
         Callback::from(move |_: ()| state.dispatch(AppAction::ClearRollingWindow))
@@ -317,7 +301,7 @@ pub fn app() -> Html {
                     .map(|c| c.notes.to_vec())
             })
         } else {
-            state.practice_state.as_ref().map(|ps| ps.target_chord.notes.to_vec())
+            None
         };
 
     // ── Theme class ──────────────────────────────────────────────────────────
@@ -339,7 +323,6 @@ pub fn app() -> Html {
                 on_toggle_mute={on_toggle_mute}
                 midi_status={state.midi_status}
                 metronome_active={state.metronome_active}
-                on_enter_practice={on_enter_practice}
                 on_toggle_metronome={on_toggle_metronome}
             />
 
@@ -357,17 +340,7 @@ pub fn app() -> Html {
                 </div>
             }
 
-            if state.app_mode == AppMode::Practice {
-                if let Some(ref ps) = state.practice_state {
-                    <PracticePanel
-                        target_chord={ps.target_chord.clone()}
-                        held_notes={state.held_notes.clone()}
-                        score={ps.score.clone()}
-                        on_exit={on_practice_exit}
-                        on_advance={on_practice_advance}
-                    />
-                }
-            } else if state.app_mode == AppMode::PlayAlong {
+            if state.app_mode == AppMode::PlayAlong {
                 if let Some(ref pa) = state.play_along_state {
                     if let Some(progression) = crate::data::find_progression(pa.progression_id) {
                         <PlayAlongPanel

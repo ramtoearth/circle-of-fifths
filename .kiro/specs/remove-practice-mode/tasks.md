@@ -64,7 +64,7 @@ Pure deletion across 7 files. No new logic is introduced. Tasks 1–2 establish 
     - _Requirements: 2.3_
     - _Depends on: None_
 
-  - [ ] 3.6 Remove practice wiring from `src/components/app.rs`
+  - [x] 3.6 Remove practice wiring from `src/components/app.rs`
     - Remove import: `use crate::components::practice_panel::PracticePanel;`
     - Remove `PracticeAdvance` from `use crate::state::{AppAction, AppMode, AppState, ProgressionId, SessionResult, Theme}` import (remove `PracticeAdvance` if listed; `SessionResult` may already be removed by the quiz removal task)
     - Remove callback: `on_enter_practice` (the `Callback::from(move |_| state.dispatch(AppAction::EnterPractice))` definition)
