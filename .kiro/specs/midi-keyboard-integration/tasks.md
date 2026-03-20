@@ -8,7 +8,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
 
 ## Tasks
 
-- [ ] 1. Add `src/midi/mod.rs` with core data types
+- [x] 1. Add `src/midi/mod.rs` with core data types
   - Define `MidiEvent`, `HeldNote`, `MidiStatus`, `RecognizedChord`, `KeySuggestion`, `PracticeScore`, `ChordResult`, `PlayAlongScore` as specified in the design
   - Implement `HeldNote::from_midi(note, velocity)` and `HeldNote::velocity_opacity()`
   - Implement `PitchClass::from_index(u8)` if not already present in `src/music_theory/mod.rs`
@@ -18,16 +18,16 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
 - [ ] 2. Extend `AppState` and `AppAction` with MIDI fields and variants
   - Add `midi_status`, `device_names`, `held_notes`, `rolling_window`, `recognized_chord`, `key_suggestions`, `app_mode`, `practice_state`, `play_along_state`, `metronome_active` fields to `AppState` in `src/state/mod.rs`
   - Add `AppMode`, `PracticeState`, `PlayAlongState` types
-  - Add all new `AppAction` variants: `MidiStatusChanged`, `MidiDevicesChanged`, `MidiNoteOn`, `MidiNoteOff`, `ClearRollingWindow`, `EnterPractice`, `ExitPractice`, `PracticeAdvance`, `EnterPlayAlong`, `ExitPlayAlong`, `PlayAlongTick`, `PlayAlongSetBpm`, `RecordPlayAlongChordResult`, `ToggleMetronome`
+  - Add all new `AppAction` variants: `MidiStatusChanged`, `MidiDevicesChanged`, `MidiNoteOn`, `MidiNoteOff`, `ClearRollingWindow`, `EnterPractice`, `ExitPractice`, `PracticeAdvance`, `EnterPlayAlong`, `ExitPlayAlong`, `PlayAlongTick`, `RecordPlayAlongChordResult`, `ToggleMetronome`
+  - Note: `PlayAlongSetBpm` is NOT needed — BPM changes go through the existing `SetBpm` action which updates `AppState.bpm`
   - Implement reducer arms for all new variants
   - Reducer arm for `MidiNoteOn`: add to `held_notes`, append `(pitch_class, timestamp)` to `rolling_window`
   - Reducer arm for `MidiNoteOff`: remove matching `midi_note` from `held_notes`; velocity=0 NoteOn also removes (Property 4)
   - Reducer arm for `MidiDevicesChanged` with empty list: clear `held_notes` (Property 12)
   - Reducer arm for `ClearRollingWindow`: empty `rolling_window` and `key_suggestions` (Property 11)
-  - Reducer arm for `ExitPlayAlong`: set `app_mode = Normal`, `play_along_state = None`, restore `metronome_active` to its pre-play-along value (Property 16)
-  - Reducer arm for `PlayAlongSetBpm`: clamp bpm to [40, 200] and update `AppState.bpm` (shared field) (Property 15)
+  - Reducer arm for `ExitPlayAlong`: set `app_mode = Normal`, `play_along_state = None`, restore `metronome_active` from `play_along_state.pre_play_along_metronome_active` (Property 16)
+  - Reducer arm for `SetBpm`: clamp bpm to [40, 200] and update `AppState.bpm` (Property 15) — note `SetBpm` already exists but currently does NOT clamp; add clamping
   - Reducer arm for `ToggleMetronome`: flip `metronome_active` (Property 17)
-  - Reducer arm for `SetBpm`: clamp bpm to [40, 200] (Property 18)
   - _Requirements: 1.7, 1.8, 2.1, 2.2, 2.5, 4.6, 6.2, 6.7, 7.1, 7.4_
   - _Depends on: 1_
 
@@ -36,10 +36,9 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - **Property 4: Velocity=0 treated as NoteOff** — NoteOn with velocity=0 removes note from `held_notes`
   - **Property 11: ClearRollingWindow resets state** — `rolling_window` and `key_suggestions` both empty after dispatch
   - **Property 12: Device disconnection clears held notes** — `MidiDevicesChanged([])` empties `held_notes`
-  - **Property 15: BPM clamping** — `play_along_state.bpm` always in [40, 200]
+  - **Property 15: BPM clamping** — `AppState.bpm` always in [40, 200] after `SetBpm` with any input (note: `SetBpm` already exists; this test validates the new clamping behavior)
   - **Property 16: ExitPlayAlong resets mode** — `app_mode == Normal` and `play_along_state == None`
   - **Property 17: Metronome toggle round-trip** — `metronome_active` unchanged after two `ToggleMetronome` dispatches
-  - **Property 18: BPM range invariant** — `AppState.bpm` always in [40, 200] after `SetBpm` with any input
   - _Validates: Requirements 1.7, 2.1, 2.2, 2.5, 4.6, 6.2, 6.7, 7.1, 7.8_
   - _Depends on: 2_
 
@@ -76,6 +75,14 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - **Property 3: Velocity opacity is monotonically increasing** — `velocity_opacity(v1) < velocity_opacity(v2)` for v1 < v2; boundary values 0.35 and 1.0
   - _Validates: Requirements 2.3, 2.4_
   - _Depends on: 1_
+
+- [ ] 4.3 Wire existing NavBar props in `app.rs` and fix BPM slider range
+  - `NavBarProps` already has `selected_key`, `bpm`, and `on_set_bpm` fields, but `app.rs` does NOT yet pass them to `<NavBar>`
+  - Pass `selected_key={state.selected_key}`, `bpm={state.bpm}`, and `on_set_bpm={on_set_bpm}` in the `<NavBar>` usage in `src/components/app.rs`
+  - In `src/components/nav_bar.rs`, fix the BPM slider range from `min="60" max="240"` to `min="40" max="200"` (Requirement 7.8)
+  - Also add clamping to the `SetBpm` reducer arm in `src/state/mod.rs` so values outside [40, 200] are clamped (currently no clamping exists)
+  - _Requirements: 7.8_
+  - _Depends on: None_
 
 - [ ] 5. Checkpoint — run `cargo test` and ensure all pure-Rust tests pass
   - Ensure all tests pass, ask the user if questions arise.
@@ -123,13 +130,14 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Depends on: 9_
 
 - [ ] 10. Extend `NavBar` with Practice mode entry and Metronome toggle
+  - Note: `selected_key`, `bpm`, and `on_set_bpm` props already exist in `NavBarProps` and are wired in task 4.3
   - Add `midi_status: MidiStatus`, `on_enter_practice: Callback<()>`, `metronome_active: bool`, and `on_toggle_metronome: Callback<()>` props to `NavBar` in `src/components/nav_bar.rs`
   - Render "Practice" button only when `midi_status == MidiStatus::Connected`; if not connected, show inline message per Requirement 5.7
   - Render "Metronome" toggle button adjacent to the BPM slider; label reflects current state ("Metronome: On" / "Metronome: Off")
-  - Update BPM slider `min` to `40` and `max` to `200` (was 60–240)
+  - BPM slider range is already fixed to 40–200 in task 4.3
   - Button dispatches `AppAction::EnterPractice` and `AppAction::ToggleMetronome` via their respective callbacks
   - _Requirements: 5.1, 5.7, 7.1, 7.8_
-  - _Depends on: 2_
+  - _Depends on: 2, 4.3_
 
 - [ ] 11. Extend `ProgressionPanel` with Play-Along entry
   - Add `midi_status: MidiStatus` and `on_enter_play_along: Callback<ProgressionId>` props to `ProgressionPanel` in `src/components/progression_panel.rs`
@@ -154,12 +162,12 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Depends on: 12_
 
 - [ ] 13. Create `PlayAlongPanel` component in `src/components/play_along_panel.rs`
-  - Implement props: `progression`, `current_chord_index`, `bpm`, `held_notes`, `score`, `on_stop`, `on_bpm_change`
+  - Implement props: `progression`, `current_chord_index`, `bpm`, `held_notes`, `score`, `on_stop`
+  - Note: there is NO `on_bpm_change` prop — BPM is global via `AppState.bpm` and is controlled exclusively from the NavBar slider. The panel reads `bpm` from props but does not own a BPM input.
   - Set up a beat timer using `gloo_timers` (or `web_sys::Window::set_interval`) at interval `60_000 / bpm` ms; on each tick dispatch `AppAction::PlayAlongTick`
   - Drop/clear the timer handle on component unmount
   - Display current expected chord, highlight its notes as `practice_target` in `PianoPanel`
   - Dispatch `RecordPlayAlongChordResult` each tick based on whether all target PitchClasses were in `held_notes`
-  - Render BPM control (input clamped to [40, 200]) that fires `on_bpm_change`; this updates `AppState.bpm` (shared with the NavBar slider and Metronome)
   - Show results summary when progression completes; provide "Stop" button firing `on_stop`
   - Register in `src/components/mod.rs`; render from `App` when `app_mode == AppMode::PlayAlong`
   - _Requirements: 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
@@ -171,21 +179,30 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - In `src/components/app.rs`, add a `use_interval` (gloo_timers) that fires at `60_000 / bpm` ms when `metronome_active` is true; each tick calls `audio_engine.schedule_metronome_click(ctx.current_time() + lookahead)`
   - Recreate the interval whenever `bpm` or `metronome_active` changes (use `use_effect_with((bpm, metronome_active), ...)`)
   - When `metronome_active` is false or the engine is muted, skip scheduling
-  - When `EnterPlayAlong` is dispatched, save the current `metronome_active` value in `PlayAlongState` and force `metronome_active = true`
+  - When `EnterPlayAlong` is dispatched, save the current `metronome_active` value in `PlayAlongState.pre_play_along_metronome_active` and force `metronome_active = true`
   - When `ExitPlayAlong` is dispatched, restore `metronome_active` from the saved value in `PlayAlongState`
-  - Persist `metronome_active` to localStorage on every `ToggleMetronome` dispatch (in `App`'s `use_effect` watching `state.metronome_active`)
-  - Load `metronome_active` from localStorage on app init (alongside existing state hydration)
-  - _Requirements: 7.2, 7.3, 7.5, 7.6, 7.7, 7.9, 6.9_
+  - Note: `piano-key--playing` CSS class already exists in `index.css` — do NOT re-add it
+  - _Requirements: 7.2, 7.3, 7.5, 7.6, 7.9, 6.9_
   - _Depends on: 2, 10_
+
+- [ ] 13.6 Add `metronome_active` persistence to `src/storage/mod.rs`
+  - Add `metronome_active: bool` field to `PersistedState` (default `false`)
+  - Add `serialize_metronome_active(bool) -> String` and `deserialize_metronome_active(&str) -> bool` helpers
+  - Wire into `load_state`: read `cof_metronome_active` key from localStorage
+  - Wire into `save_state`: write `metronome_active` to localStorage on every save
+  - In `app.rs`, load `metronome_active` from `PersistedState` on init (alongside existing theme/muted/favorites/best_scores hydration)
+  - In `app.rs`, include `state.metronome_active` in the `use_effect_with` dependency tuple that triggers `save_state`
+  - _Requirements: 7.7_
+  - _Depends on: 2_
 
 - [ ] 14. Wire new props through `App` component
   - Pass `held_notes` and `practice_target` (derived from `practice_state` or `play_along_state`) to `PianoPanel`
   - Pass `midi_status`, `device_names`, `recognized_chord`, `key_suggestions` to `MidiStatusBar`; wire `on_clear_window` to dispatch `ClearRollingWindow`
-  - Pass `midi_status`, `on_enter_practice`, `metronome_active`, and `on_toggle_metronome` to `NavBar`
+  - Pass `midi_status`, `on_enter_practice`, `metronome_active`, and `on_toggle_metronome` to `NavBar` (note: `selected_key`, `bpm`, `on_set_bpm` are already wired from task 4.3)
   - Pass `midi_status` and `on_enter_play_along` to `ProgressionPanel`
   - Conditionally render `PracticePanel` or `PlayAlongPanel` based on `app_mode`
   - _Requirements: 1.4, 1.8, 2.1, 5.1, 6.1, 7.1_
-  - _Depends on: 8, 9, 10, 11, 12, 13, 13.5_
+  - _Depends on: 8, 9, 10, 11, 12, 13, 13.5, 13.6_
 
 - [ ] 15. Final checkpoint — ensure all tests pass
   - Run `cargo test` for pure-Rust tests
@@ -198,7 +215,8 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
 - Tasks marked with `*` are optional and can be skipped for a faster MVP
 - Property tests use `proptest` with the tag format `// Feature: midi-keyboard-integration, Property N: <text>`
 - Pure Rust tests (tasks 2.1, 3.1, 4.1, 4.2, 9.1, 12.1) run with `cargo test`
+- Task 4.3 (wire NavBar props + fix BPM slider range) has no dependencies and can be done immediately
 - Tasks 1, 3, 4 can begin in parallel immediately
 - Tasks 2.1, 3.1, 4.1, 4.2 can run in parallel once their respective parents are done
 - Tasks 9, 10, 11 can run in parallel once task 2 is done
-- Task 13.5 can run in parallel with tasks 12 and 13 once task 2 and 10 are done
+- Task 13.5 and 13.6 can run in parallel with tasks 12 and 13 once task 2 and 10 are done
