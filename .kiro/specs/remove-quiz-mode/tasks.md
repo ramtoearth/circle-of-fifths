@@ -39,14 +39,14 @@
 
 - [ ] 3. Remove all quiz-mode code
 
-  - [ ] 3.1 Delete src/components/quiz_panel.rs
+  - [x] 3.1 Delete src/components/quiz_panel.rs
     - Delete the entire file `src/components/quiz_panel.rs`
     - _Bug_Condition: isBugCondition(X) where X contains file src/components/quiz_panel.rs_
     - _Expected_Behavior: file does not exist after fix_
     - _Preservation: no other component depends on quiz_panel.rs_
     - _Requirements: 2.1, 2.6_
 
-  - [ ] 3.2 Remove quiz_panel from src/components/mod.rs
+  - [x] 3.2 Remove quiz_panel from src/components/mod.rs
     - Remove the line `pub mod quiz_panel;`
     - _Bug_Condition: isBugCondition(X) where X contains "pub mod quiz_panel" in components/mod.rs_
     - _Expected_Behavior: quiz_panel is not part of the public component surface_
