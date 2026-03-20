@@ -369,7 +369,16 @@ impl MidiEngine {
                 return engine;
             }
         };
-        let navigator: JsValue = window.navigator().into();
+        let navigator: JsValue = match Reflect::get(
+            &JsValue::from(window),
+            &JsValue::from_str("navigator"),
+        ) {
+            Ok(v) => v,
+            Err(_) => {
+                dispatch.emit(AppAction::MidiStatusChanged(MidiStatus::Unavailable));
+                return engine;
+            }
+        };
 
         let rma_val = match Reflect::get(&navigator, &JsValue::from_str("requestMIDIAccess")) {
             Ok(v) if !v.is_undefined() && !v.is_null() => v,

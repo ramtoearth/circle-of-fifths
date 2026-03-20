@@ -10,10 +10,9 @@ use crate::components::piano_panel::PianoPanel;
 use crate::components::progression_panel::ProgressionPanel;
 use crate::components::play_along_panel::PlayAlongPanel;
 use crate::components::practice_panel::PracticePanel;
-use crate::components::quiz_panel::QuizPanel;
 use crate::midi::{detect_keys, recognize_chord, ChordResult, MidiEngine};
 use crate::music_theory::DiatonicChord;
-use crate::state::{AppAction, AppMode, AppState, ProgressionId, SessionResult, Theme};
+use crate::state::{AppAction, AppMode, AppState, ProgressionId, Theme};
 use crate::storage::{load_state, save_state};
 
 #[function_component(App)]
@@ -26,7 +25,6 @@ pub fn app() -> Html {
             s.theme = persisted.theme;
             s.muted = persisted.muted;
             s.favorites = persisted.favorites;
-            s.best_scores = persisted.best_scores;
             s.metronome_active = persisted.metronome_active;
             s
         })
@@ -128,7 +126,6 @@ pub fn app() -> Html {
                 state.theme,
                 state.muted,
                 state.favorites.clone(),
-                state.best_scores.clone(),
                 state.metronome_active,
             ),
             move |_| {
@@ -262,11 +259,6 @@ pub fn app() -> Html {
         Callback::from(move |bpm: u32| state.dispatch(AppAction::SetBpm(bpm)))
     };
 
-    let on_enter_quiz = {
-        let state = state.clone();
-        Callback::from(move |_| state.dispatch(AppAction::EnterQuiz))
-    };
-
     let on_enter_practice = {
         let state = state.clone();
         Callback::from(move |_| state.dispatch(AppAction::EnterPractice))
@@ -314,19 +306,6 @@ pub fn app() -> Html {
         Callback::from(move |_: ()| state.dispatch(AppAction::ClearRollingWindow))
     };
 
-    let on_quiz_exit = {
-        let state = state.clone();
-        Callback::from(move |_| state.dispatch(AppAction::ExitQuiz))
-    };
-
-    let on_session_end = {
-        let state = state.clone();
-        Callback::from(move |result: SessionResult| {
-            state.dispatch(AppAction::RecordQuizResult(result));
-            state.dispatch(AppAction::ExitQuiz);
-        })
-    };
-
     // ── Derived: practice_target for PianoPanel ───────────────────────────────
     let practice_target: Option<Vec<crate::music_theory::PitchClass>> =
         if let Some(ref pa) = state.play_along_state {
@@ -358,7 +337,6 @@ pub fn app() -> Html {
                 on_set_bpm={on_set_bpm}
                 on_toggle_theme={on_toggle_theme}
                 on_toggle_mute={on_toggle_mute}
-                on_enter_quiz={on_enter_quiz}
                 midi_status={state.midi_status}
                 metronome_active={state.metronome_active}
                 on_enter_practice={on_enter_practice}
@@ -404,12 +382,6 @@ pub fn app() -> Html {
                         />
                     }
                 }
-            } else if state.quiz_active {
-                <QuizPanel
-                    best_scores={state.best_scores.clone()}
-                    on_session_end={on_session_end}
-                    on_exit={on_quiz_exit}
-                />
             } else {
                 <div class="main-layout">
                     <CircleView

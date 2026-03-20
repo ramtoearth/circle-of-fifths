@@ -348,6 +348,7 @@ impl AudioEngineHandle {
     pub fn schedule_metronome_click(&self, start: f64) {
         self.0.borrow().schedule_metronome_click(start);
     }
+
 }
 
 impl PartialEq for AudioEngineHandle {

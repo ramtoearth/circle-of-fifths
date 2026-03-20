@@ -14,7 +14,6 @@ pub struct NavBarProps {
     pub on_set_bpm: Callback<u32>,
     pub on_toggle_theme: Callback<()>,
     pub on_toggle_mute: Callback<()>,
-    pub on_enter_quiz: Callback<()>,
     pub midi_status: MidiStatus,
     pub metronome_active: bool,
     pub on_enter_practice: Callback<()>,
@@ -25,7 +24,6 @@ pub struct NavBarProps {
 pub fn nav_bar(props: &NavBarProps) -> Html {
     let on_toggle_theme = props.on_toggle_theme.reform(|_: MouseEvent| ());
     let on_toggle_mute = props.on_toggle_mute.reform(|_: MouseEvent| ());
-    let on_enter_quiz = props.on_enter_quiz.reform(|_: MouseEvent| ());
     let on_enter_practice = props.on_enter_practice.reform(|_: MouseEvent| ());
     let on_toggle_metronome = props.on_toggle_metronome.reform(|_: MouseEvent| ());
 
@@ -75,9 +73,6 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
                 </button>
                 <button class="nav-bar__btn nav-bar__btn--mute" onclick={on_toggle_mute}>
                     { mute_label }
-                </button>
-                <button class="nav-bar__btn nav-bar__btn--quiz" onclick={on_enter_quiz}>
-                    { "Quiz Mode" }
                 </button>
                 <button
                     class="nav-bar__btn nav-bar__btn--metronome"

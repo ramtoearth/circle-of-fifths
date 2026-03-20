@@ -12,29 +12,6 @@ pub use crate::music_theory::{
     ProgressionId, BorrowedChord, ProgressionTag, Progression, ActiveProgression,
 };
 
-// ─────────────────────────── Quiz / app-level types ──────────────────────────
-
-/// Quiz question types.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum QuestionType {
-    KeySignatureAccidentals,
-    RelativeMinor,
-    ScaleNotes,
-}
-
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct Question {
-    pub q_type: QuestionType,
-    pub key: Key,
-}
-
-#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BestScores {
-    pub key_sig: Option<u32>,
-    pub relative_minor: Option<u32>,
-    pub scale_notes: Option<u32>,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Theme { Dark, Light }
 
@@ -78,8 +55,6 @@ pub struct AppState {
     pub theme: Theme,
     pub muted: bool,
     pub bpm: u32,
-    pub quiz_active: bool,
-    pub best_scores: BestScores,
     pub audio_error: Option<String>,
     // ── MIDI fields ──────────────────────────────────────────────────────────
     pub midi_status: MidiStatus,
@@ -106,8 +81,6 @@ impl Default for AppState {
             theme: Theme::Dark,
             muted: false,
             bpm: 120,
-            quiz_active: false,
-            best_scores: BestScores::default(),
             audio_error: None,
             // MIDI defaults
             midi_status: MidiStatus::Unavailable,
@@ -124,13 +97,6 @@ impl Default for AppState {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct SessionResult {
-    pub correct: u32,
-    pub total: u32,
-    pub q_type_scores: BestScores,
-}
-
 /// All state transitions.
 #[derive(Clone, Debug)]
 pub enum AppAction {
@@ -145,9 +111,6 @@ pub enum AppAction {
     ShiftOctave(i8),
     ToggleTheme,
     ToggleMute,
-    EnterQuiz,
-    ExitQuiz,
-    RecordQuizResult(SessionResult),
     SetAudioError(Option<String>),
     SetBpm(u32),
     // ── MIDI actions ─────────────────────────────────────────────────────────
@@ -325,31 +288,6 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             muted: !state.muted,
             ..state
         },
-
-        // ── Quiz ──────────────────────────────────────────────────────────
-        AppAction::EnterQuiz => AppState {
-            quiz_active: true,
-            ..state
-        },
-
-        AppAction::ExitQuiz => AppState {
-            quiz_active: false,
-            ..state
-        },
-
-        AppAction::RecordQuizResult(result) => {
-            let mut best = state.best_scores.clone();
-            if let Some(score) = result.q_type_scores.key_sig {
-                best.key_sig = Some(best.key_sig.map_or(score, |b| b.max(score)));
-            }
-            if let Some(score) = result.q_type_scores.relative_minor {
-                best.relative_minor = Some(best.relative_minor.map_or(score, |b| b.max(score)));
-            }
-            if let Some(score) = result.q_type_scores.scale_notes {
-                best.scale_notes = Some(best.scale_notes.map_or(score, |b| b.max(score)));
-            }
-            AppState { best_scores: best, ..state }
-        }
 
         // ── Audio error ───────────────────────────────────────────────────
         AppAction::SetAudioError(err) => AppState {
@@ -561,21 +499,6 @@ mod tests {
 
     fn c_major() -> Key { Key { root: PitchClass::C, mode: Mode::Major } }
     fn default_state() -> AppState { AppState::default() }
-
-    // ── Task 5.11: unit tests for state transitions ───────────────────────
-
-    #[test]
-    fn enter_quiz_sets_quiz_active() {
-        let s = app_reducer(default_state(), AppAction::EnterQuiz);
-        assert!(s.quiz_active);
-    }
-
-    #[test]
-    fn exit_quiz_clears_quiz_active() {
-        let s0 = app_reducer(default_state(), AppAction::EnterQuiz);
-        let s1 = app_reducer(s0, AppAction::ExitQuiz);
-        assert!(!s1.quiz_active);
-    }
 
     #[test]
     fn octave_clamp_at_max() {
