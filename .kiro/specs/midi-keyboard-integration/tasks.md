@@ -63,7 +63,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 4.1, 4.2, 4.3, 4.5_
   - _Depends on: 1_
 
-- [ ]* 4.1 Write property tests for key detection
+- [x]* 4.1 Write property tests for key detection
   - **Property 8: Rolling window excludes stale notes** — `filter_rolling_window` excludes entries older than 10s
   - **Property 9: Key detection threshold** — `detect_keys` returns empty Vec for < 4 distinct PitchClasses
   - **Property 10: Key detection ranking** — results sorted by score descending, scores computed correctly

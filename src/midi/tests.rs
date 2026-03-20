@@ -466,4 +466,100 @@ mod property_tests {
                 "Root {:?} is not in scale of {:?}, should be non-diatonic", root, key);
         }
     }
+
+    // ── Key detection property tests (Task 4.1) ───────────────────────────────
+
+    fn any_timestamp() -> impl Strategy<Value = f64> {
+        0.0f64..=100_000.0f64
+    }
+
+    fn any_rolling_window() -> impl Strategy<Value = Vec<(PitchClass, f64)>> {
+        proptest::collection::vec(
+            (any_pitch_class(), any_timestamp()),
+            0usize..20usize,
+        )
+    }
+
+    // Feature: midi-keyboard-integration, Property 8: Rolling window excludes stale notes
+    proptest! {
+        #[test]
+        fn prop_filter_rolling_window_excludes_stale(
+            entries in any_rolling_window(),
+            now_ms in any_timestamp(),
+        ) {
+            let filtered = filter_rolling_window(&entries, now_ms);
+            for &(_, ts) in &filtered {
+                prop_assert!(
+                    now_ms - ts <= 10_000.0,
+                    "entry with ts={} should have been excluded (now={})", ts, now_ms
+                );
+            }
+            // Every entry that is within the window must be kept
+            for &(pc, ts) in &entries {
+                if now_ms - ts <= 10_000.0 {
+                    prop_assert!(
+                        filtered.iter().any(|&(fpc, fts)| fpc == pc && fts == ts),
+                        "entry ({:?}, {}) within window should be in filtered result", pc, ts
+                    );
+                }
+            }
+        }
+    }
+
+    // Feature: midi-keyboard-integration, Property 9: Key detection threshold
+    proptest! {
+        #[test]
+        fn prop_detect_keys_empty_below_threshold(
+            pcs in proptest::collection::hash_set(any_pitch_class(), 0usize..4usize),
+            now_ms in any_timestamp(),
+        ) {
+            // Build a window where every entry is fresh (ts = now_ms, so age = 0)
+            let window: Vec<(PitchClass, f64)> = pcs.iter()
+                .map(|&pc| (pc, now_ms))
+                .collect();
+            let result = detect_keys(&window, now_ms);
+            prop_assert!(
+                result.is_empty(),
+                "detect_keys should return [] for {} distinct PCs (need 4+)", pcs.len()
+            );
+        }
+    }
+
+    // Feature: midi-keyboard-integration, Property 10: Key detection ranking
+    proptest! {
+        #[test]
+        fn prop_detect_keys_sorted_by_score_descending(
+            pcs in proptest::collection::hash_set(any_pitch_class(), 4usize..=12usize),
+            now_ms in any_timestamp(),
+        ) {
+            let window: Vec<(PitchClass, f64)> = pcs.iter()
+                .map(|&pc| (pc, now_ms))
+                .collect();
+            let result = detect_keys(&window, now_ms);
+
+            // At most 3 results
+            prop_assert!(result.len() <= 3, "detect_keys should return at most 3 suggestions");
+
+            // Sorted by score descending
+            for i in 1..result.len() {
+                prop_assert!(
+                    result[i - 1].score >= result[i].score,
+                    "results not sorted: score[{}]={} < score[{}]={}",
+                    i - 1, result[i - 1].score, i, result[i].score
+                );
+            }
+
+            // Each score equals the count of window PCs in that key's scale
+            for suggestion in &result {
+                let scale: HashSet<PitchClass> =
+                    scale_notes(suggestion.key).iter().cloned().collect();
+                let expected_score = pcs.iter().filter(|pc| scale.contains(pc)).count() as u8;
+                prop_assert_eq!(
+                    suggestion.score, expected_score,
+                    "score for key {:?} should be {}, got {}",
+                    suggestion.key, expected_score, suggestion.score
+                );
+            }
+        }
+    }
 }
