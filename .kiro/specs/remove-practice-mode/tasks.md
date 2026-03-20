@@ -99,10 +99,11 @@ Pure deletion across 7 files. No new logic is introduced. Tasks 1–2 establish 
     - **RESULT**: grep returned zero matches — `isBugCondition` = false. `cargo check` finished with zero errors.
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 3.8 Verify preservation — run cargo test
+  - [x] 3.8 Verify preservation — run cargo test
     - Run `cargo test` on the fixed codebase
     - Expected: all remaining tests pass (MIDI reducer, storage, music theory, piano panel tests)
     - Note: practice_panel tests are gone (file deleted), but all other test suites must be green
+    - **RESULT**: `cargo test` — 111 passed, 0 failed. All preservation tests green.
     - _Requirements: 3.1–3.8_
 
 - [ ] 4. Checkpoint — confirm zero test failures and zero compilation errors
