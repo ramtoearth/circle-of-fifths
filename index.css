@@ -626,6 +626,21 @@ svg text {
   z-index: 2;
 }
 
+/* ── MIDI held note (opacity set inline via velocity_opacity()) ─────────────── */
+.piano-key.midi-held {
+  box-shadow: inset 0 0 0 3px rgba(100, 180, 255, 0.9);
+  z-index: 3;
+}
+
+/* ── Practice / Play-Along note feedback ────────────────────────────────────── */
+.piano-key.midi-correct {
+  background: #22c55e !important;
+}
+
+.piano-key.midi-incorrect {
+  background: #ef4444 !important;
+}
+
 /* Key labels */
 .piano-key__label {
   font-size: 9px;

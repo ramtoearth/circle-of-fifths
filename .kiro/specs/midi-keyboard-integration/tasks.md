@@ -114,7 +114,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 1.2, 1.3, 1.4, 1.8, 3.1, 3.3, 3.4, 3.6, 4.2, 4.3, 4.6_
   - _Depends on: 7_
 
-- [ ] 9. Extend `PianoPanel` with MIDI highlight props
+- [x] 9. Extend `PianoPanel` with MIDI highlight props
   - Add `held_notes: Vec<HeldNote>` and `practice_target: Option<Vec<PitchClass>>` props to `PianoPanelProps` in `src/components/piano_panel.rs`
   - For each piano key, apply `midi-held` CSS class + inline `opacity` from `velocity_opacity()` when the key's `(pitch_class, octave)` matches a `HeldNote`
   - When `practice_target` is `Some`, apply `midi-correct` (green) to held notes whose PitchClass is in target, `midi-incorrect` (red) to held notes not in target (Property 13)

@@ -1,5 +1,6 @@
 use yew::prelude::*;
 
+use crate::midi::HeldNote;
 use crate::music_theory::{scale_notes, ChordHighlight, Key, KeyRole, PitchClass};
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -60,6 +61,18 @@ fn white_keys_before_in_octave(semitone_idx: usize) -> usize {
     TABLE[semitone_idx % 12]
 }
 
+/// CSS class for a held key under practice/play-along mode (Property 13).
+///
+/// Returns `"midi-correct"` when the pitch is in `target`, `"midi-incorrect"` otherwise.
+/// Returns `""` when `target` is None (no practice mode active).
+pub fn practice_key_class(pitch: PitchClass, target: Option<&[PitchClass]>) -> &'static str {
+    match target {
+        Some(t) if t.contains(&pitch) => "midi-correct",
+        Some(_) => "midi-incorrect",
+        None => "",
+    }
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 #[derive(Properties, PartialEq)]
@@ -72,31 +85,58 @@ pub struct PianoPanelProps {
     pub octave_offset: i8,
     pub on_toggle_labels: Callback<()>,
     pub on_octave_shift: Callback<i8>,
+    /// MIDI notes currently held down. Keys matching (pitch_class, octave) get
+    /// the `midi-held` class and a velocity-derived inline opacity.
+    #[prop_or_default]
+    pub held_notes: Vec<HeldNote>,
+    /// When Some, held keys whose PitchClass is in target get `midi-correct`,
+    /// held keys not in target get `midi-incorrect` (Property 13).
+    #[prop_or_default]
+    pub practice_target: Option<Vec<PitchClass>>,
 }
 
 #[function_component(PianoPanel)]
 pub fn piano_panel(props: &PianoPanelProps) -> Html {
     let container_ref = use_node_ref();
+    let base_octave = 3i8 + props.octave_offset;
 
-    // Auto-scroll: when the highlighted chord changes, scroll the keyboard so
-    // that the root note of the chord is visible (requirement 5.7).
+    // Auto-scroll: prefer lowest held MIDI note; fall back to chord root.
     {
         let container_ref = container_ref.clone();
         let chord = props.highlighted_chord.clone();
-        use_effect_with(chord, move |chord| {
-            if let (Some(container), Some(chord)) = (
-                container_ref.cast::<web_sys::Element>(),
-                chord.as_ref(),
-            ) {
+        let held_notes = props.held_notes.clone();
+        use_effect_with((chord, held_notes), move |(chord, held_notes)| {
+            let Some(container) = container_ref.cast::<web_sys::Element>() else { return; };
+
+            let scroll_px = if let Some(lowest) = held_notes.iter().min_by_key(|n| n.midi_note) {
+                // Scroll to lowest held note's position on the keyboard
+                let semitone_from_start =
+                    lowest.midi_note as i32 - (base_octave as i32 + 1) * 12;
+                if semitone_from_start >= 0 {
+                    let idx = semitone_from_start as usize;
+                    let octave_in_kb = idx / 12;
+                    let pc = idx % 12;
+                    Some(
+                        (octave_in_kb * 7 + white_keys_before_in_octave(pc)) as i32
+                            * WHITE_KEY_WIDTH_PX,
+                    )
+                } else {
+                    None
+                }
+            } else if let Some(chord) = chord {
+                // Fall back to chord root when no MIDI notes held
                 let semitone = chord.root.to_index() as usize;
-                let scroll_px =
-                    white_keys_before_in_octave(semitone) as i32 * WHITE_KEY_WIDTH_PX;
-                container.set_scroll_left(scroll_px);
+                Some(white_keys_before_in_octave(semitone) as i32 * WHITE_KEY_WIDTH_PX)
+            } else {
+                None
+            };
+
+            if let Some(px) = scroll_px {
+                container.set_scroll_left(px);
             }
         });
     }
 
-    let base_octave = 3i8 + props.octave_offset;
     let keys = piano_keys();
 
     let key_elements: Html = keys
@@ -117,12 +157,33 @@ pub fn piano_panel(props: &PianoPanelProps) -> Html {
                 KeyRole::None      => "",
             };
             let type_cls = if black { "piano-key--black" } else { "piano-key--white" };
-            let playing_cls = if props.playing_note == Some((pitch, octave_num as i32)) { "piano-key--playing" } else { "" };
-            let classes = format!("piano-key {} {} {}", type_cls, role_cls, playing_cls);
+            let playing_cls = if props.playing_note == Some((pitch, octave_num as i32)) {
+                "piano-key--playing"
+            } else {
+                ""
+            };
+
+            // Find a matching held note for this exact key (pitch class + octave)
+            let held = props.held_notes.iter()
+                .find(|n| n.pitch_class == pitch && n.octave == octave_num);
+            let midi_cls = if held.is_some() { "midi-held" } else { "" };
+            // Practice/play-along color — only applied to held keys
+            let practice_cls = held
+                .map(|_| practice_key_class(pitch, props.practice_target.as_deref()))
+                .unwrap_or("");
+
+            let classes = format!(
+                "piano-key {} {} {} {} {}",
+                type_cls, role_cls, playing_cls, midi_cls, practice_cls
+            );
+            // Velocity-derived opacity — only set when the key is held
+            let style = held
+                .map(|n| format!("opacity: {:.2}", n.velocity_opacity()))
+                .unwrap_or_default();
             let show_labels = props.show_labels;
 
             html! {
-                <div class={classes} key={i as u32}>
+                <div class={classes} style={style} key={i as u32}>
                     if show_labels {
                         <span class="piano-key__label">{ label }</span>
                     }
@@ -264,5 +325,44 @@ mod tests {
         assert!(!is_black_key(PitchClass::G));
         assert!(!is_black_key(PitchClass::A));
         assert!(!is_black_key(PitchClass::B));
+    }
+
+    // ── MIDI highlight tests (Task 9) ──────────────────────────────────────
+
+    // Feature: midi-keyboard-integration, Property 13: Practice/play-along note color classification
+    #[test]
+    fn practice_key_class_correct_when_in_target() {
+        let target = vec![PitchClass::C, PitchClass::E, PitchClass::G];
+        assert_eq!(practice_key_class(PitchClass::C, Some(&target)), "midi-correct");
+        assert_eq!(practice_key_class(PitchClass::E, Some(&target)), "midi-correct");
+        assert_eq!(practice_key_class(PitchClass::G, Some(&target)), "midi-correct");
+    }
+
+    #[test]
+    fn practice_key_class_incorrect_when_not_in_target() {
+        let target = vec![PitchClass::C, PitchClass::E, PitchClass::G];
+        assert_eq!(practice_key_class(PitchClass::D, Some(&target)), "midi-incorrect");
+        assert_eq!(practice_key_class(PitchClass::F, Some(&target)), "midi-incorrect");
+        assert_eq!(practice_key_class(PitchClass::A, Some(&target)), "midi-incorrect");
+    }
+
+    #[test]
+    fn practice_key_class_empty_when_no_target() {
+        assert_eq!(practice_key_class(PitchClass::C, None), "");
+        assert_eq!(practice_key_class(PitchClass::Gb, None), "");
+    }
+
+    #[test]
+    fn practice_key_class_covers_all_pitch_classes() {
+        // Property 13: correct/incorrect are disjoint and cover all 12 pitch classes
+        let target = vec![PitchClass::C, PitchClass::E, PitchClass::G];
+        for idx in 0u8..12 {
+            let pc = PitchClass::from_index(idx);
+            let cls = practice_key_class(pc, Some(&target));
+            assert!(
+                cls == "midi-correct" || cls == "midi-incorrect",
+                "Expected midi-correct or midi-incorrect for {:?}, got {:?}", pc, cls
+            );
+        }
     }
 }
