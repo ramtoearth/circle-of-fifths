@@ -80,7 +80,7 @@
     - _Preservation: theme, muted, favorites, metronome_active serialization/deserialization functions and tests remain unchanged_
     - _Requirements: 2.1, 2.3_
 
-  - [ ] 3.5 Remove quiz props from src/components/nav_bar.rs
+  - [x] 3.5 Remove quiz props from src/components/nav_bar.rs
     - Remove `on_enter_quiz: Callback<()>` from `NavBarProps`
     - Remove `let on_enter_quiz = props.on_enter_quiz.reform(|_: MouseEvent| ());` from component body
     - Remove the `<button class="nav-bar__btn nav-bar__btn--quiz" onclick={on_enter_quiz}>{ "Quiz Mode" }</button>` element from rendered HTML
@@ -104,7 +104,7 @@
     - _Preservation: all other callbacks, state init fields, persistence deps, and render branches remain unchanged_
     - _Requirements: 2.1, 2.5_
 
-  - [ ] 3.7 Verify bug condition exploration test now passes (fix checking)
+  - [x] 3.7 Verify bug condition exploration test now passes (fix checking)
     - **Property 1: Expected Behavior** - Quiz Symbols Absent After Fix
     - **IMPORTANT**: Re-run the SAME grep checks from task 1 — do NOT write new checks
     - Run all grep commands from task 1 on the FIXED code
@@ -112,7 +112,7 @@
     - Confirm `cargo check` compiles with zero errors
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ] 3.8 Verify preservation tests still pass
+  - [x] 3.8 Verify preservation tests still pass
     - **Property 2: Preservation** - Non-Quiz Behavior Unchanged
     - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
     - Run `cargo test` on the fixed codebase
