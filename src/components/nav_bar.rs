@@ -16,7 +16,6 @@ pub struct NavBarProps {
     pub on_toggle_mute: Callback<()>,
     pub midi_status: MidiStatus,
     pub metronome_active: bool,
-    pub on_enter_practice: Callback<()>,
     pub on_toggle_metronome: Callback<()>,
 }
 
@@ -24,7 +23,6 @@ pub struct NavBarProps {
 pub fn nav_bar(props: &NavBarProps) -> Html {
     let on_toggle_theme = props.on_toggle_theme.reform(|_: MouseEvent| ());
     let on_toggle_mute = props.on_toggle_mute.reform(|_: MouseEvent| ());
-    let on_enter_practice = props.on_enter_practice.reform(|_: MouseEvent| ());
     let on_toggle_metronome = props.on_toggle_metronome.reform(|_: MouseEvent| ());
 
     let theme_label = match props.theme {
@@ -80,13 +78,6 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
                 >
                     { metronome_label }
                 </button>
-                if props.midi_status == MidiStatus::Connected {
-                    <button class="nav-bar__btn nav-bar__btn--practice" onclick={on_enter_practice}>
-                        { "Practice" }
-                    </button>
-                } else {
-                    <span class="nav-bar__midi-hint">{ "Connect a MIDI device to use Practice mode" }</span>
-                }
             </div>
         </nav>
     }

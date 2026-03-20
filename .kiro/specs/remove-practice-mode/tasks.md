@@ -38,7 +38,7 @@ Pure deletion across 7 files. No new logic is introduced. Tasks 1–2 establish 
     - _Requirements: 2.6_
     - _Depends on: None_
 
-  - [ ] 3.3 Remove practice types and reducer arms from `src/state/mod.rs`
+  - [x] 3.3 Remove practice types and reducer arms from `src/state/mod.rs`
     - Remove type: `PracticeState` struct (the entire struct definition)
     - Remove variant from `AppMode` enum: `Practice` — keep `Normal` and `PlayAlong`
     - Remove from `AppState`: `practice_state: Option<PracticeState>` field
@@ -55,7 +55,7 @@ Pure deletion across 7 files. No new logic is introduced. Tasks 1–2 establish 
     - _Requirements: 2.1_
     - _Depends on: None_
 
-  - [ ] 3.5 Remove practice props from `src/components/nav_bar.rs`
+  - [x] 3.5 Remove practice props from `src/components/nav_bar.rs`
     - Remove from `NavBarProps`: `on_enter_practice: Callback<()>`
     - Remove from component body: `let on_enter_practice = props.on_enter_practice.reform(|_: MouseEvent| ());`
     - Remove from rendered HTML: the entire `if props.midi_status == MidiStatus::Connected { <button ...>Practice</button> } else { <span>Connect a MIDI device to use Practice mode</span> }` block
