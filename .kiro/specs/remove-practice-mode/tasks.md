@@ -106,7 +106,8 @@ Pure deletion across 7 files. No new logic is introduced. Tasks 1–2 establish 
     - **RESULT**: `cargo test` — 111 passed, 0 failed. All preservation tests green.
     - _Requirements: 3.1–3.8_
 
-- [ ] 4. Checkpoint — confirm zero test failures and zero compilation errors
+- [x] 4. Checkpoint — confirm zero test failures and zero compilation errors
   - Run `cargo test` and confirm exit code 0
   - Confirm no quiz or practice symbols remain in `src/`
+  - **RESULT**: 111 passed, 0 failed. Zero practice symbols in `src/`. Zero compilation errors.
   - Ask the user if any questions arise
