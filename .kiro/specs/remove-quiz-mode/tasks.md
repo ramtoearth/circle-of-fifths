@@ -52,7 +52,7 @@
     - _Expected_Behavior: quiz_panel is not part of the public component surface_
     - _Requirements: 2.6_
 
-  - [ ] 3.3 Remove quiz types and reducer arms from src/state/mod.rs
+  - [x] 3.3 Remove quiz types and reducer arms from src/state/mod.rs
     - Remove types: `QuestionType` enum, `Question` struct, `BestScores` struct, `SessionResult` struct (the entire "Quiz / app-level types" section and its contents)
     - Remove from `AppState`: `quiz_active: bool` and `best_scores: BestScores` fields
     - Remove from `AppState::default()`: `quiz_active: false` and `best_scores: BestScores::default()`
