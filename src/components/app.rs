@@ -8,9 +8,10 @@ use crate::components::midi_status_bar::MidiStatusBar;
 use crate::components::nav_bar::NavBar;
 use crate::components::piano_panel::PianoPanel;
 use crate::components::progression_panel::ProgressionPanel;
+use crate::components::play_along_panel::PlayAlongPanel;
 use crate::components::practice_panel::PracticePanel;
 use crate::components::quiz_panel::QuizPanel;
-use crate::midi::{detect_keys, recognize_chord, MidiEngine};
+use crate::midi::{detect_keys, recognize_chord, ChordResult, MidiEngine};
 use crate::music_theory::DiatonicChord;
 use crate::state::{AppAction, AppMode, AppState, ProgressionId, SessionResult, Theme};
 use crate::storage::{load_state, save_state};
@@ -281,6 +282,23 @@ pub fn app() -> Html {
         Callback::from(move |id: ProgressionId| state.dispatch(AppAction::EnterPlayAlong(id)))
     };
 
+    let on_play_along_stop = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::ExitPlayAlong))
+    };
+
+    let on_play_along_tick = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::PlayAlongTick))
+    };
+
+    let on_play_along_record_result = {
+        let state = state.clone();
+        Callback::from(move |result: ChordResult| {
+            state.dispatch(AppAction::RecordPlayAlongChordResult(result))
+        })
+    };
+
     let on_practice_exit = {
         let state = state.clone();
         Callback::from(move |_: ()| state.dispatch(AppAction::ExitPractice))
@@ -308,6 +326,20 @@ pub fn app() -> Html {
             state.dispatch(AppAction::ExitQuiz);
         })
     };
+
+    // ── Derived: practice_target for PianoPanel ───────────────────────────────
+    let practice_target: Option<Vec<crate::music_theory::PitchClass>> =
+        if let Some(ref pa) = state.play_along_state {
+            crate::data::find_progression(pa.progression_id).and_then(|prog| {
+                let chords = crate::music_theory::diatonic_chords(prog.key);
+                prog.chords
+                    .get(pa.current_chord_index)
+                    .and_then(|&d| chords.iter().find(|c| c.degree == d))
+                    .map(|c| c.notes.to_vec())
+            })
+        } else {
+            state.practice_state.as_ref().map(|ps| ps.target_chord.notes.to_vec())
+        };
 
     // ── Theme class ──────────────────────────────────────────────────────────
     let theme_class = match state.theme {
@@ -357,6 +389,21 @@ pub fn app() -> Html {
                         on_advance={on_practice_advance}
                     />
                 }
+            } else if state.app_mode == AppMode::PlayAlong {
+                if let Some(ref pa) = state.play_along_state {
+                    if let Some(progression) = crate::data::find_progression(pa.progression_id) {
+                        <PlayAlongPanel
+                            progression={progression}
+                            current_chord_index={pa.current_chord_index}
+                            bpm={state.bpm}
+                            held_notes={state.held_notes.clone()}
+                            score={pa.score.clone()}
+                            on_stop={on_play_along_stop}
+                            on_tick={on_play_along_tick}
+                            on_record_result={on_play_along_record_result}
+                        />
+                    }
+                }
             } else if state.quiz_active {
                 <QuizPanel
                     best_scores={state.best_scores.clone()}
@@ -399,7 +446,7 @@ pub fn app() -> Html {
                     on_toggle_labels={on_toggle_labels}
                     on_octave_shift={on_octave_shift}
                     held_notes={state.held_notes.clone()}
-                    practice_target={state.practice_state.as_ref().map(|ps| ps.target_chord.notes.to_vec())}
+                    practice_target={practice_target}
                 />
             </div>
         </div>

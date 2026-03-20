@@ -195,7 +195,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 7.7_
   - _Depends on: 2_
 
-- [ ] 14. Wire new props through `App` component
+- [x] 14. Wire new props through `App` component
   - Pass `held_notes` and `practice_target` (derived from `practice_state` or `play_along_state`) to `PianoPanel`
   - Pass `midi_status`, `device_names`, `recognized_chord`, `key_suggestions` to `MidiStatusBar`; wire `on_clear_window` to dispatch `ClearRollingWindow`
   - Pass `midi_status`, `on_enter_practice`, `metronome_active`, and `on_toggle_metronome` to `NavBar` (note: `selected_key`, `bpm`, `on_set_bpm` are already wired from task 4.3)
