@@ -204,7 +204,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 1.4, 1.8, 2.1, 5.1, 6.1, 7.1_
   - _Depends on: 8, 9, 10, 11, 12, 13, 13.5, 13.6_
 
-- [ ] 15. Final checkpoint — ensure all tests pass
+- [x] 15. Final checkpoint — ensure all tests pass
   - Run `cargo test` for pure-Rust tests
   - Run `wasm-pack test --headless --chrome` for browser-API tests
   - Ensure all tests pass, ask the user if questions arise.
