@@ -1,4 +1,4 @@
-use gloo_timers::callback::Timeout;
+use gloo_timers::callback::{Interval, Timeout};
 use yew::prelude::*;
 
 use crate::audio::AudioEngineHandle;
@@ -51,6 +51,25 @@ pub fn app() -> Html {
         let muted = state.muted;
         use_effect_with(muted, move |&m| {
             audio.set_muted(m);
+        });
+    }
+
+    // Metronome: schedule clicks via an Interval recreated when bpm or active changes
+    {
+        let audio = audio.clone();
+        let bpm = state.bpm;
+        let metronome_active = state.metronome_active;
+        use_effect_with((bpm, metronome_active), move |&(bpm, active)| {
+            if !active {
+                return Box::new(|| ()) as Box<dyn FnOnce()>;
+            }
+            let interval_ms = (60_000u32).saturating_div(bpm.max(1));
+            let audio = audio.clone();
+            let handle = Interval::new(interval_ms, move || {
+                let start = audio.current_time() + 0.02; // 20 ms lookahead
+                audio.schedule_metronome_click(start);
+            });
+            Box::new(move || drop(handle)) as Box<dyn FnOnce()>
         });
     }
 

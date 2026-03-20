@@ -203,6 +203,54 @@ impl AudioEngine {
         let _ = progression;
     }
 
+    /// Returns the AudioContext's current time in seconds, or 0.0 if unavailable.
+    pub fn current_time(&self) -> f64 {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(ctx) = &self.ctx {
+            return ctx.current_time();
+        }
+        0.0
+    }
+
+    /// Schedule a single short metronome click at `start` seconds (AudioContext time).
+    /// Uses a triangle oscillator at 1200 Hz with a 30 ms duration and fast decay.
+    pub fn schedule_metronome_click(&self, start: f64) {
+        if self.muted {
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(ctx) = &self.ctx {
+            use web_sys::OscillatorType;
+
+            let oscillator = match ctx.create_oscillator() {
+                Ok(o) => o,
+                Err(_) => return,
+            };
+            let gain_node = match ctx.create_gain() {
+                Ok(g) => g,
+                Err(_) => return,
+            };
+
+            oscillator.set_type(OscillatorType::Triangle);
+            oscillator.frequency().set_value(1200.0);
+
+            let gain_param = gain_node.gain();
+            let _ = gain_param.set_value_at_time(0.5, start);
+            let _ = gain_param.exponential_ramp_to_value_at_time(0.001, start + 0.03);
+
+            if oscillator
+                .connect_with_audio_node(&gain_node)
+                .and_then(|_| gain_node.connect_with_audio_node(&ctx.destination()))
+                .is_ok()
+            {
+                let _ = oscillator.start_with_when(start);
+                let _ = oscillator.stop_with_when(start + 0.035);
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = start;
+    }
+
     /// Suspend audio playback immediately.
     /// Requirement 7.6
     pub fn stop(&self) {
@@ -291,6 +339,14 @@ impl AudioEngineHandle {
 
     pub fn is_muted(&self) -> bool {
         self.0.borrow().is_muted()
+    }
+
+    pub fn current_time(&self) -> f64 {
+        self.0.borrow().current_time()
+    }
+
+    pub fn schedule_metronome_click(&self, start: f64) {
+        self.0.borrow().schedule_metronome_click(start);
     }
 }
 

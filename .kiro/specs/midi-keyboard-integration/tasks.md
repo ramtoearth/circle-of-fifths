@@ -173,7 +173,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
   - _Depends on: 9, 11_
 
-- [ ] 13.5 Implement metronome in `AudioEngine` and wire into `App`
+- [x] 13.5 Implement metronome in `AudioEngine` and wire into `App`
   - Add `schedule_metronome_click(&self, start: f64)` to `AudioEngine` in `src/audio/mod.rs`; use a triangle oscillator at ~1200 Hz with a 30 ms duration and fast decay envelope (distinct from sine-wave note playback)
   - Add `schedule_metronome_click` forwarding method to `AudioEngineHandle`
   - In `src/components/app.rs`, add a `use_interval` (gloo_timers) that fires at `60_000 / bpm` ms when `metronome_active` is true; each tick calls `audio_engine.schedule_metronome_click(ctx.current_time() + lookahead)`
