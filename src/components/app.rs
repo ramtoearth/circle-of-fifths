@@ -4,6 +4,7 @@ use yew::prelude::*;
 use crate::audio::AudioEngineHandle;
 use crate::components::circle_view::CircleView;
 use crate::components::key_info_panel::KeyInfoPanel;
+use crate::components::midi_status_bar::MidiStatusBar;
 use crate::components::nav_bar::NavBar;
 use crate::components::piano_panel::PianoPanel;
 use crate::components::progression_panel::ProgressionPanel;
@@ -290,6 +291,11 @@ pub fn app() -> Html {
         Callback::from(move |_: ()| state.dispatch(AppAction::PracticeAdvance))
     };
 
+    let on_clear_window = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::ClearRollingWindow))
+    };
+
     let on_quiz_exit = {
         let state = state.clone();
         Callback::from(move |_| state.dispatch(AppAction::ExitQuiz))
@@ -325,6 +331,14 @@ pub fn app() -> Html {
                 metronome_active={state.metronome_active}
                 on_enter_practice={on_enter_practice}
                 on_toggle_metronome={on_toggle_metronome}
+            />
+
+            <MidiStatusBar
+                midi_status={state.midi_status}
+                device_names={state.device_names.clone()}
+                recognized_chord={state.recognized_chord.clone()}
+                key_suggestions={state.key_suggestions.clone()}
+                on_clear_window={on_clear_window}
             />
 
             if let Some(err) = &state.audio_error {

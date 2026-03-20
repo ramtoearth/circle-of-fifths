@@ -105,7 +105,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 1.1, 3.5, 4.5_
   - _Depends on: 6_
 
-- [ ] 8. Create `MidiStatusBar` component in `src/components/midi_status_bar.rs`
+- [x] 8. Create `MidiStatusBar` component in `src/components/midi_status_bar.rs`
   - Implement props: `midi_status`, `device_names`, `recognized_chord`, `key_suggestions`, `on_clear_window`
   - Render MIDI connection status badge, device name(s), recognized chord name + Roman numeral + diatonic/borrowed indicator, top key suggestions with scores, and a "Clear" button that fires `on_clear_window`
   - Show unavailable/permission-denied/no-devices notices per Requirements 1.2, 1.3
