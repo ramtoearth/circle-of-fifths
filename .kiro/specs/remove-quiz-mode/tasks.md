@@ -37,7 +37,7 @@
     - State reducer units (7): `select_key_sets_selected_key`, `select_key_twice_deselects`, `favorite_toggle_round_trip`, `mute_toggle_round_trip`, `theme_toggle_round_trip`, `octave_clamp_{at_min,at_max}` — all ✅
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
 
-- [ ] 3. Remove all quiz-mode code
+- [x] 3. Remove all quiz-mode code
 
   - [x] 3.1 Delete src/components/quiz_panel.rs
     - Delete the entire file `src/components/quiz_panel.rs`
@@ -120,7 +120,7 @@
     - Confirm all tests listed in task 2 still pass after the fix
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
 
-- [ ] 4. Checkpoint - Ensure all tests pass
+- [x] 4. Checkpoint - Ensure all tests pass
   - Run `cargo test` and confirm exit code 0 with zero test failures
   - Confirm zero compilation errors or warnings related to the removed quiz symbols
   - Ask the user if any questions arise
