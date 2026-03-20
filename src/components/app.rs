@@ -8,6 +8,7 @@ use crate::components::nav_bar::NavBar;
 use crate::components::piano_panel::PianoPanel;
 use crate::components::progression_panel::ProgressionPanel;
 use crate::components::quiz_panel::QuizPanel;
+use crate::midi::{detect_keys, recognize_chord, MidiEngine};
 use crate::music_theory::DiatonicChord;
 use crate::state::{AppAction, AppState, ProgressionId, SessionResult, Theme};
 use crate::storage::{load_state, save_state};
@@ -34,6 +35,10 @@ pub fn app() -> Html {
     // Tracks which pitch+octave is currently being played in the scale animation
     let playing_note = use_state(|| None::<(crate::music_theory::PitchClass, i32)>);
 
+    // ── MIDI engine — keep alive for component lifetime ───────────────────────
+    // Option<MidiEngine> stored in a ref so closures (JS callbacks) are not dropped.
+    let midi_engine = use_mut_ref(|| Option::<MidiEngine>::None);
+
     // Sync audio error into state on mount
     {
         let state = state.clone();
@@ -43,6 +48,45 @@ pub fn app() -> Html {
                 state.dispatch(AppAction::SetAudioError(Some(err)));
             }
         });
+    }
+
+    // Initialize MidiEngine on mount — request browser MIDI access.
+    // The engine is stored in `midi_engine` ref so closures outlive this render.
+    {
+        let state = state.clone();
+        let midi_engine = midi_engine.clone();
+        use_effect_with((), move |_| {
+            let dispatch_handle = state.clone();
+            let callback = Callback::from(move |action: AppAction| {
+                dispatch_handle.dispatch(action);
+            });
+            let engine = MidiEngine::request_access(callback);
+            *midi_engine.borrow_mut() = Some(engine);
+        });
+    }
+
+    // Re-run chord recognition and key detection whenever held notes or
+    // rolling window changes, and push results back into state.
+    {
+        let state = state.clone();
+        let held_notes = state.held_notes.clone();
+        let rolling_window = state.rolling_window.clone();
+        let selected_key = state.selected_key;
+        use_effect_with(
+            (held_notes, rolling_window, selected_key),
+            move |(held, window, key)| {
+                let chord = recognize_chord(held, *key);
+                state.dispatch(AppAction::UpdateRecognizedChord(chord));
+
+                #[cfg(target_arch = "wasm32")]
+                let now_ms = js_sys::Date::now();
+                #[cfg(not(target_arch = "wasm32"))]
+                let now_ms = 0.0_f64;
+
+                let suggestions = detect_keys(window, now_ms);
+                state.dispatch(AppAction::UpdateKeySuggestions(suggestions));
+            },
+        );
     }
 
     // Sync mute state to audio engine whenever it changes
@@ -319,6 +363,7 @@ pub fn app() -> Html {
                     octave_offset={state.octave_offset}
                     on_toggle_labels={on_toggle_labels}
                     on_octave_shift={on_octave_shift}
+                    held_notes={state.held_notes.clone()}
                 />
             </div>
         </div>

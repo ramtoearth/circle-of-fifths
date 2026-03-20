@@ -98,7 +98,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7_
   - _Depends on: 2_
 
-- [ ] 7. Wire `MidiEngine` into `App` component
+- [x] 7. Wire `MidiEngine` into `App` component
   - In `src/components/app.rs`, initialize `MidiEngine` in a `use_effect_with((), ...)` hook after mount, passing the Yew dispatch handle
   - Store the `MidiEngine` in a `use_mut_ref` to keep closures alive for the component lifetime
   - Add a `use_effect` that calls `recognize_chord` and `detect_keys` whenever `held_notes` or `rolling_window` changes, dispatching `AppAction` to update `recognized_chord` and `key_suggestions` in state
