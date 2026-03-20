@@ -64,7 +64,7 @@
     - _Preservation: all non-quiz AppAction variants and their reducer arms remain unchanged_
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 3.4 Remove quiz storage from src/storage/mod.rs
+  - [x] 3.4 Remove quiz storage from src/storage/mod.rs
     - Remove `BestScores` from the `use crate::state::{...}` import
     - Remove `KEY_BEST_SCORES` constant
     - Remove `best_scores: BestScores` field from `PersistedState` struct
@@ -89,7 +89,7 @@
     - _Preservation: bpm, on_set_bpm, metronome_active, on_toggle_metronome, on_enter_practice, midi_status, on_toggle_theme, on_toggle_mute, selected_key, theme props and their rendered elements remain unchanged_
     - _Requirements: 2.1, 2.4_
 
-  - [ ] 3.6 Remove quiz wiring from src/components/app.rs
+  - [x] 3.6 Remove quiz wiring from src/components/app.rs
     - Remove `use crate::components::quiz_panel::QuizPanel;` import
     - Remove `SessionResult` from `use crate::state::{...}` import
     - Remove `s.best_scores = persisted.best_scores;` from state init block
