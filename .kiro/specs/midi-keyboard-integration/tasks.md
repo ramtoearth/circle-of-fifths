@@ -161,7 +161,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Validates: Requirements 5.5, 6.5_
   - _Depends on: 12_
 
-- [ ] 13. Create `PlayAlongPanel` component in `src/components/play_along_panel.rs`
+- [x] 13. Create `PlayAlongPanel` component in `src/components/play_along_panel.rs`
   - Implement props: `progression`, `current_chord_index`, `bpm`, `held_notes`, `score`, `on_stop`
   - Note: there is NO `on_bpm_change` prop — BPM is global via `AppState.bpm` and is controlled exclusively from the NavBar slider. The panel reads `bpm` from props but does not own a BPM input.
   - Set up a beat timer using `gloo_timers` (or `web_sys::Window::set_interval`) at interval `60_000 / bpm` ms; on each tick dispatch `AppAction::PlayAlongTick`
