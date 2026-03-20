@@ -57,7 +57,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Validates: Requirements 3.1, 3.2, 3.3, 3.4_
   - _Depends on: 3_
 
-- [ ] 4. Implement key detection in `src/midi/mod.rs`
+- [x] 4. Implement key detection in `src/midi/mod.rs`
   - Implement `filter_rolling_window(entries: &[(PitchClass, f64)], now_ms: f64) -> Vec<(PitchClass, f64)>` — keep only entries where `now_ms - timestamp_ms <= 10_000.0` (Property 8)
   - Implement `detect_keys(window: &[(PitchClass, f64)], now_ms: f64) -> Vec<KeySuggestion>` — return empty Vec when < 4 distinct PitchClasses (Property 9), otherwise score all 24 keys and return top 3 sorted by score descending (Property 10)
   - _Requirements: 4.1, 4.2, 4.3, 4.5_
