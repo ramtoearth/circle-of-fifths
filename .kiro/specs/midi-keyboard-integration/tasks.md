@@ -139,7 +139,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 5.1, 5.7, 7.1, 7.8_
   - _Depends on: 2, 4.3_
 
-- [ ] 11. Extend `ProgressionPanel` with Play-Along entry
+- [x] 11. Extend `ProgressionPanel` with Play-Along entry
   - Add `midi_status: MidiStatus` and `on_enter_play_along: Callback<ProgressionId>` props to `ProgressionPanel` in `src/components/progression_panel.rs`
   - Render "Play Along" button per progression only when `midi_status == MidiStatus::Connected` and a progression is active
   - If not connected, show inline message per Requirement 6.8
