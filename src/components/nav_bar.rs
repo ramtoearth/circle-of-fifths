@@ -56,8 +56,8 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
                     { format!("BPM: {}", props.bpm) }
                     <input
                         type="range"
-                        min="60"
-                        max="240"
+                        min="40"
+                        max="200"
                         value={props.bpm.to_string()}
                         oninput={on_bpm_input}
                     />

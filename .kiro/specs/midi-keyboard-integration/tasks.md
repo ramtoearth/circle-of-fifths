@@ -76,7 +76,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Validates: Requirements 2.3, 2.4_
   - _Depends on: 1_
 
-- [ ] 4.3 Wire existing NavBar props in `app.rs` and fix BPM slider range
+- [x] 4.3 Wire existing NavBar props in `app.rs` and fix BPM slider range
   - `NavBarProps` already has `selected_key`, `bpm`, and `on_set_bpm` fields, but `app.rs` does NOT yet pass them to `<NavBar>`
   - Pass `selected_key={state.selected_key}`, `bpm={state.bpm}`, and `on_set_bpm={on_set_bpm}` in the `<NavBar>` usage in `src/components/app.rs`
   - In `src/components/nav_bar.rs`, fix the BPM slider range from `min="60" max="240"` to `min="40" max="200"` (Requirement 7.8)

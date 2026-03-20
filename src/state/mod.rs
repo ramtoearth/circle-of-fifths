@@ -287,7 +287,7 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             ..state
         },
 
-        AppAction::SetBpm(bpm) => AppState { bpm, ..state },
+        AppAction::SetBpm(bpm) => AppState { bpm: bpm.clamp(40, 200), ..state },
     }
 }
 
