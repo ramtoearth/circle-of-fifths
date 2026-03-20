@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Write bug condition exploration test
+- [x] 1. Write bug condition exploration test
   - **Property 1: Bug Condition** - Quiz Symbols Present Before Fix
   - **CRITICAL**: This test MUST FAIL on fixed code - passing confirms the bug exists on unfixed code
   - **DO NOT attempt to fix the test or the code when it fails after the fix is applied**
@@ -13,8 +13,12 @@
     - `grep -r "KEY_BEST_SCORES\|serialize_best_scores\|deserialize_best_scores" src/` — expect hits in `storage/mod.rs`
     - `grep -r "on_enter_quiz\|Quiz Mode\|quiz_panel" src/` — expect hits in `nav_bar.rs`, `app.rs`, `components/mod.rs`
   - **EXPECTED OUTCOME**: All grep commands return matches (confirms `isBugCondition` is `true`)
-  - Document counterexamples found (e.g., "QuizPanel found in app.rs:14, components/mod.rs:10, quiz_panel.rs")
-  - Mark task complete when all checks are run and symbol presence is documented
+  - **RESULT**: All five grep checks returned matches — `isBugCondition` is `true`. Counterexamples:
+    - `QuizPanel`: `app.rs:13` (import), `app.rs:408` (render), `quiz_panel.rs:129,143,144`
+    - `QuestionType|BestScores|SessionResult|quiz_active`: `state/mod.rs:19,32,81,82,109,110,128,131,150,331,336`, `storage/mod.rs:3,22,32`, `app.rs:16`, `quiz_panel.rs` (many)
+    - `EnterQuiz|ExitQuiz|RecordQuizResult`: `state/mod.rs:148-150,330-340,569,575-576`, `app.rs:267,319,325-326`
+    - `KEY_BEST_SCORES|serialize_best_scores|deserialize_best_scores`: `storage/mod.rs:12,70,74,118-119,139,208,218,253-254`
+    - `on_enter_quiz|Quiz Mode|quiz_panel`: `components/mod.rs:10`, `nav_bar.rs:17,28,79-80`, `app.rs:13,265,361`
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
 
 - [x] 2. Write preservation property tests (BEFORE implementing fix)
@@ -27,7 +31,10 @@
     - `select_key_sets_selected_key`, `select_key_twice_deselects`, `favorite_toggle_round_trip`, `mute_toggle_round_trip`, `theme_toggle_round_trip`, `octave_clamp_*` in `src/state/mod.rs`
   - Record baseline: all listed tests PASS on unfixed code
   - **EXPECTED OUTCOME**: All preservation tests PASS on unfixed code (establishes baseline to preserve)
-  - Mark task complete when baseline is recorded
+  - **RESULT**: `cargo test` — 139 passed, 0 failed on unfixed code. Baseline confirmed:
+    - MIDI reducer props (7): `prop_note_on_off_round_trip`, `prop_velocity_zero_is_note_off`, `prop_clear_rolling_window`, `prop_empty_devices_clears_held_notes`, `prop_set_bpm_clamped`, `prop_exit_play_along_resets_mode`, `prop_metronome_toggle_round_trip` — all ✅
+    - Storage round-trips (9): `theme_round_trip_{dark,light}`, `muted_round_trip_{true,false}`, `favorites_round_trip_{empty,nonempty}`, `metronome_active_round_trip_{true,false}`, `load_state_returns_defaults_in_native_target` — all ✅
+    - State reducer units (7): `select_key_sets_selected_key`, `select_key_twice_deselects`, `favorite_toggle_round_trip`, `mute_toggle_round_trip`, `theme_toggle_round_trip`, `octave_clamp_{at_min,at_max}` — all ✅
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7_
 
 - [ ] 3. Remove all quiz-mode code
