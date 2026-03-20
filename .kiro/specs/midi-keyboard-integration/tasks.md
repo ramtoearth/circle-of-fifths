@@ -70,7 +70,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Validates: Requirements 4.1, 4.2, 4.3_
   - _Depends on: 4_
 
-- [ ]* 4.2 Write property tests for HeldNote math
+- [x]* 4.2 Write property tests for HeldNote math
   - **Property 2: MIDI note to PitchClass/Octave derivation** — `from_midi(n, v).pitch_class == PitchClass::from_index(n % 12)` and `.octave == (n/12) as i8 - 1`
   - **Property 3: Velocity opacity is monotonically increasing** — `velocity_opacity(v1) < velocity_opacity(v2)` for v1 < v2; boundary values 0.35 and 1.0
   - _Validates: Requirements 2.3, 2.4_

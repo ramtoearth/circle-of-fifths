@@ -286,6 +286,43 @@ mod property_tests {
         ("m7b5", &[0, 3, 6, 10]),
     ];
 
+    // Feature: midi-keyboard-integration, Property 2: MIDI note to PitchClass/Octave derivation
+    proptest! {
+        #[test]
+        fn prop_midi_note_pitch_class_and_octave(
+            note in 0u8..=127u8,
+            vel in 1u8..=127u8,
+        ) {
+            let held = HeldNote::from_midi(note, vel);
+            prop_assert_eq!(held.pitch_class, PitchClass::from_index(note % 12));
+            prop_assert_eq!(held.octave, (note / 12) as i8 - 1);
+        }
+    }
+
+    // Feature: midi-keyboard-integration, Property 3: Velocity opacity is monotonically increasing
+    proptest! {
+        #[test]
+        fn prop_velocity_opacity_monotone(
+            v1 in 1u8..127u8,  // 1..127 so v2 = v1+1 stays in 1..=127
+        ) {
+            let v2 = v1 + 1;
+            let op1 = HeldNote::from_midi(60, v1).velocity_opacity();
+            let op2 = HeldNote::from_midi(60, v2).velocity_opacity();
+            prop_assert!(op1 < op2, "opacity({}) = {} should be < opacity({}) = {}", v1, op1, v2, op2);
+        }
+    }
+
+    // Feature: midi-keyboard-integration, Property 3: Velocity opacity boundary values
+    proptest! {
+        #[test]
+        fn prop_velocity_opacity_boundaries(note in 0u8..=127u8) {
+            let op_min = HeldNote::from_midi(note, 1).velocity_opacity();
+            let op_max = HeldNote::from_midi(note, 127).velocity_opacity();
+            prop_assert!((op_min - 0.35_f32).abs() < 1e-5, "opacity(1) should be 0.35, got {}", op_min);
+            prop_assert!((op_max - 1.0_f32).abs() < 1e-5, "opacity(127) should be 1.0, got {}", op_max);
+        }
+    }
+
     // Feature: midi-keyboard-integration, Property 5: Chord recognition requires 3+ distinct PitchClasses
     proptest! {
         #[test]
