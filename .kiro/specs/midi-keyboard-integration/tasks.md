@@ -15,7 +15,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 2.3, 2.4_
   - _Depends on: None_
 
-- [ ] 2. Extend `AppState` and `AppAction` with MIDI fields and variants
+- [x] 2. Extend `AppState` and `AppAction` with MIDI fields and variants
   - Add `midi_status`, `device_names`, `held_notes`, `rolling_window`, `recognized_chord`, `key_suggestions`, `app_mode`, `practice_state`, `play_along_state`, `metronome_active` fields to `AppState` in `src/state/mod.rs`
   - Add `AppMode`, `PracticeState`, `PlayAlongState` types
   - Add all new `AppAction` variants: `MidiStatusChanged`, `MidiDevicesChanged`, `MidiNoteOn`, `MidiNoteOff`, `ClearRollingWindow`, `EnterPractice`, `ExitPractice`, `PracticeAdvance`, `EnterPlayAlong`, `ExitPlayAlong`, `PlayAlongTick`, `RecordPlayAlongChordResult`, `ToggleMetronome`
