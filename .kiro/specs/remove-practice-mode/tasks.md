@@ -28,12 +28,12 @@ Pure deletion across 7 files. No new logic is introduced. Tasks 1–2 establish 
 
 - [ ] 3. Remove all practice-mode code
 
-  - [ ] 3.1 Delete `src/components/practice_panel.rs`
+  - [x] 3.1 Delete `src/components/practice_panel.rs`
     - Delete the entire file
     - _Requirements: 2.1, 2.6_
     - _Depends on: None_
 
-  - [ ] 3.2 Remove `practice_panel` from `src/components/mod.rs`
+  - [x] 3.2 Remove `practice_panel` from `src/components/mod.rs`
     - Remove the line: `pub mod practice_panel;`
     - _Requirements: 2.6_
     - _Depends on: None_
