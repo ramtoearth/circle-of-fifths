@@ -7,10 +7,11 @@ use crate::components::key_info_panel::KeyInfoPanel;
 use crate::components::nav_bar::NavBar;
 use crate::components::piano_panel::PianoPanel;
 use crate::components::progression_panel::ProgressionPanel;
+use crate::components::practice_panel::PracticePanel;
 use crate::components::quiz_panel::QuizPanel;
 use crate::midi::{detect_keys, recognize_chord, MidiEngine};
 use crate::music_theory::DiatonicChord;
-use crate::state::{AppAction, AppState, ProgressionId, SessionResult, Theme};
+use crate::state::{AppAction, AppMode, AppState, ProgressionId, SessionResult, Theme};
 use crate::storage::{load_state, save_state};
 
 #[function_component(App)]
@@ -279,6 +280,16 @@ pub fn app() -> Html {
         Callback::from(move |id: ProgressionId| state.dispatch(AppAction::EnterPlayAlong(id)))
     };
 
+    let on_practice_exit = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::ExitPractice))
+    };
+
+    let on_practice_advance = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::PracticeAdvance))
+    };
+
     let on_quiz_exit = {
         let state = state.clone();
         Callback::from(move |_| state.dispatch(AppAction::ExitQuiz))
@@ -322,7 +333,17 @@ pub fn app() -> Html {
                 </div>
             }
 
-            if state.quiz_active {
+            if state.app_mode == AppMode::Practice {
+                if let Some(ref ps) = state.practice_state {
+                    <PracticePanel
+                        target_chord={ps.target_chord.clone()}
+                        held_notes={state.held_notes.clone()}
+                        score={ps.score.clone()}
+                        on_exit={on_practice_exit}
+                        on_advance={on_practice_advance}
+                    />
+                }
+            } else if state.quiz_active {
                 <QuizPanel
                     best_scores={state.best_scores.clone()}
                     on_session_end={on_session_end}
@@ -364,6 +385,7 @@ pub fn app() -> Html {
                     on_toggle_labels={on_toggle_labels}
                     on_octave_shift={on_octave_shift}
                     held_notes={state.held_notes.clone()}
+                    practice_target={state.practice_state.as_ref().map(|ps| ps.target_chord.notes.to_vec())}
                 />
             </div>
         </div>

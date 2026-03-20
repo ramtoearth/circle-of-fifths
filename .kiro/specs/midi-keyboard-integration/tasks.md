@@ -146,7 +146,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 6.1, 6.8_
   - _Depends on: 2_
 
-- [ ] 12. Create `PracticePanel` component in `src/components/practice_panel.rs`
+- [x] 12. Create `PracticePanel` component in `src/components/practice_panel.rs`
   - Implement props: `target_chord: DiatonicChord`, `held_notes: Vec<HeldNote>`, `score: PracticeScore`, `on_exit: Callback<()>`
   - Display target chord name and notes; show per-note color feedback via `practice_target` passed to `PianoPanel`
   - Detect when all target PitchClasses are present in `held_notes` and dispatch `AppAction::PracticeAdvance`
@@ -156,7 +156,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 5.2, 5.3, 5.4, 5.5, 5.6_
   - _Depends on: 9, 10_
 
-- [ ]* 12.1 Write property test for accuracy score invariant
+- [x]* 12.1 Write property test for accuracy score invariant
   - **Property 14: Accuracy score invariant** — `correct_notes <= total_notes_played` always holds; ratio in [0.0, 1.0]
   - _Validates: Requirements 5.5, 6.5_
   - _Depends on: 12_
