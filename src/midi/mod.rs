@@ -72,13 +72,6 @@ pub struct KeySuggestion {
 
 // ─────────────────────────── Scoring types ────────────────────────────────
 
-/// Practice mode per-chord score
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct PracticeScore {
-    pub correct_notes: u32,
-    pub total_notes_played: u32,
-}
-
 /// Play-along per-chord result
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChordResult {

@@ -93,13 +93,6 @@ fn test_midi_status_variants() {
 // ─────────────────────────── Score types ──────────────────────────────────
 
 #[test]
-fn test_practice_score_default() {
-    let s = PracticeScore::default();
-    assert_eq!(s.correct_notes, 0);
-    assert_eq!(s.total_notes_played, 0);
-}
-
-#[test]
 fn test_play_along_score_default() {
     let s = PlayAlongScore::default();
     assert!(s.chord_results.is_empty());

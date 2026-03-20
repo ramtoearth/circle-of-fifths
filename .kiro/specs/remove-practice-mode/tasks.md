@@ -49,7 +49,7 @@ Pure deletion across 7 files. No new logic is introduced. Tasks 1–2 establish 
     - _Requirements: 2.1, 2.2_
     - _Depends on: None_
 
-  - [ ] 3.4 Remove `PracticeScore` from `src/midi/mod.rs`
+  - [x] 3.4 Remove `PracticeScore` from `src/midi/mod.rs`
     - Remove the `PracticeScore` struct definition and its `#[derive]` line
     - Keep: `ChordResult`, `PlayAlongScore`, `HeldNote`, `MidiStatus`, `RecognizedChord`, `KeySuggestion`, `MidiEvent`, `MidiEngine`, all functions — untouched
     - _Requirements: 2.1_
