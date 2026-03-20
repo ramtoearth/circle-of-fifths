@@ -3,7 +3,7 @@ use yew::Reducible;
 
 use crate::music_theory::{Key, DiatonicChord, ChordHighlight, PitchClass, diatonic_chords};
 use crate::midi::{
-    HeldNote, KeySuggestion, MidiStatus, PlayAlongScore, PracticeScore, RecognizedChord,
+    HeldNote, KeySuggestion, MidiStatus, PlayAlongScore, RecognizedChord,
 };
 
 // Re-export progression types that now live in music_theory, so that existing
@@ -20,18 +20,11 @@ pub enum Theme { Dark, Light }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AppMode {
     Normal,
-    Practice,
     PlayAlong,
 }
 
 impl Default for AppMode {
     fn default() -> Self { AppMode::Normal }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PracticeState {
-    pub target_chord: DiatonicChord,
-    pub score: PracticeScore,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -64,7 +57,6 @@ pub struct AppState {
     pub recognized_chord: Option<RecognizedChord>,
     pub key_suggestions: Vec<KeySuggestion>,
     pub app_mode: AppMode,
-    pub practice_state: Option<PracticeState>,
     pub play_along_state: Option<PlayAlongState>,
     pub metronome_active: bool,
 }
@@ -90,7 +82,6 @@ impl Default for AppState {
             recognized_chord: None,
             key_suggestions: Vec::new(),
             app_mode: AppMode::Normal,
-            practice_state: None,
             play_along_state: None,
             metronome_active: false,
         }
@@ -122,9 +113,6 @@ pub enum AppAction {
     UpdateRecognizedChord(Option<RecognizedChord>),
     UpdateKeySuggestions(Vec<KeySuggestion>),
     ClearRollingWindow,
-    EnterPractice,
-    ExitPractice,
-    PracticeAdvance,
     EnterPlayAlong(ProgressionId),
     ExitPlayAlong,
     PlayAlongTick,
@@ -360,55 +348,6 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             key_suggestions: vec![],
             ..state
         },
-
-        // Practice mode — blocked by UI when not Connected; reducer just sets mode
-        AppAction::EnterPractice => {
-            if state.app_mode != AppMode::Normal {
-                return state;
-            }
-            let key = match state.selected_key {
-                Some(k) => k,
-                None => return state,
-            };
-            let chords = diatonic_chords(key);
-            let target_chord = chords[0].clone();
-            AppState {
-                app_mode: AppMode::Practice,
-                practice_state: Some(PracticeState {
-                    target_chord,
-                    score: PracticeScore::default(),
-                }),
-                ..state
-            }
-        }
-
-        AppAction::ExitPractice => AppState {
-            app_mode: AppMode::Normal,
-            practice_state: None,
-            ..state
-        },
-
-        AppAction::PracticeAdvance => {
-            if let Some(ref ps) = state.practice_state {
-                let key = match state.selected_key {
-                    Some(k) => k,
-                    None => return state,
-                };
-                let chords = diatonic_chords(key);
-                let current_degree = &ps.target_chord.degree;
-                let current_idx = chords.iter().position(|c| c.degree == *current_degree)
-                    .unwrap_or(0);
-                let next_idx = (current_idx + 1) % chords.len();
-                let mut new_ps = ps.clone();
-                new_ps.target_chord = chords[next_idx].clone();
-                AppState {
-                    practice_state: Some(new_ps),
-                    ..state
-                }
-            } else {
-                state
-            }
-        }
 
         AppAction::EnterPlayAlong(progression_id) => {
             if state.app_mode != AppMode::Normal {
