@@ -1,15 +1,17 @@
-use gloo_timers::callback::Timeout;
+use gloo_timers::callback::{Interval, Timeout};
 use yew::prelude::*;
 
 use crate::audio::AudioEngineHandle;
 use crate::components::circle_view::CircleView;
 use crate::components::key_info_panel::KeyInfoPanel;
+use crate::components::midi_status_bar::MidiStatusBar;
 use crate::components::nav_bar::NavBar;
 use crate::components::piano_panel::PianoPanel;
 use crate::components::progression_panel::ProgressionPanel;
-use crate::components::quiz_panel::QuizPanel;
+use crate::components::play_along_panel::PlayAlongPanel;
+use crate::midi::{detect_keys, recognize_chord, ChordResult, MidiEngine};
 use crate::music_theory::DiatonicChord;
-use crate::state::{AppAction, AppState, ProgressionId, SessionResult, Theme};
+use crate::state::{AppAction, AppMode, AppState, ProgressionId, Theme};
 use crate::storage::{load_state, save_state};
 
 #[function_component(App)]
@@ -22,7 +24,7 @@ pub fn app() -> Html {
             s.theme = persisted.theme;
             s.muted = persisted.muted;
             s.favorites = persisted.favorites;
-            s.best_scores = persisted.best_scores;
+            s.metronome_active = persisted.metronome_active;
             s
         })
     };
@@ -32,6 +34,10 @@ pub fn app() -> Html {
 
     // Tracks which pitch+octave is currently being played in the scale animation
     let playing_note = use_state(|| None::<(crate::music_theory::PitchClass, i32)>);
+
+    // ── MIDI engine — keep alive for component lifetime ───────────────────────
+    // Option<MidiEngine> stored in a ref so closures (JS callbacks) are not dropped.
+    let midi_engine = use_mut_ref(|| Option::<MidiEngine>::None);
 
     // Sync audio error into state on mount
     {
@@ -44,12 +50,70 @@ pub fn app() -> Html {
         });
     }
 
+    // Initialize MidiEngine on mount — request browser MIDI access.
+    // The engine is stored in `midi_engine` ref so closures outlive this render.
+    {
+        let state = state.clone();
+        let midi_engine = midi_engine.clone();
+        use_effect_with((), move |_| {
+            let dispatch_handle = state.clone();
+            let callback = Callback::from(move |action: AppAction| {
+                dispatch_handle.dispatch(action);
+            });
+            let engine = MidiEngine::request_access(callback);
+            *midi_engine.borrow_mut() = Some(engine);
+        });
+    }
+
+    // Re-run chord recognition and key detection whenever held notes or
+    // rolling window changes, and push results back into state.
+    {
+        let state = state.clone();
+        let held_notes = state.held_notes.clone();
+        let rolling_window = state.rolling_window.clone();
+        let selected_key = state.selected_key;
+        use_effect_with(
+            (held_notes, rolling_window, selected_key),
+            move |(held, window, key)| {
+                let chord = recognize_chord(held, *key);
+                state.dispatch(AppAction::UpdateRecognizedChord(chord));
+
+                #[cfg(target_arch = "wasm32")]
+                let now_ms = js_sys::Date::now();
+                #[cfg(not(target_arch = "wasm32"))]
+                let now_ms = 0.0_f64;
+
+                let suggestions = detect_keys(window, now_ms);
+                state.dispatch(AppAction::UpdateKeySuggestions(suggestions));
+            },
+        );
+    }
+
     // Sync mute state to audio engine whenever it changes
     {
         let audio = audio.clone();
         let muted = state.muted;
         use_effect_with(muted, move |&m| {
             audio.set_muted(m);
+        });
+    }
+
+    // Metronome: schedule clicks via an Interval recreated when bpm or active changes
+    {
+        let audio = audio.clone();
+        let bpm = state.bpm;
+        let metronome_active = state.metronome_active;
+        use_effect_with((bpm, metronome_active), move |&(bpm, active)| {
+            if !active {
+                return Box::new(|| ()) as Box<dyn FnOnce()>;
+            }
+            let interval_ms = (60_000u32).saturating_div(bpm.max(1));
+            let audio = audio.clone();
+            let handle = Interval::new(interval_ms, move || {
+                let start = audio.current_time() + 0.02; // 20 ms lookahead
+                audio.schedule_metronome_click(start);
+            });
+            Box::new(move || drop(handle)) as Box<dyn FnOnce()>
         });
     }
 
@@ -61,7 +125,7 @@ pub fn app() -> Html {
                 state.theme,
                 state.muted,
                 state.favorites.clone(),
-                state.best_scores.clone(),
+                state.metronome_active,
             ),
             move |_| {
                 save_state(&state_val);
@@ -194,23 +258,51 @@ pub fn app() -> Html {
         Callback::from(move |bpm: u32| state.dispatch(AppAction::SetBpm(bpm)))
     };
 
-    let on_enter_quiz = {
+    let on_toggle_metronome = {
         let state = state.clone();
-        Callback::from(move |_| state.dispatch(AppAction::EnterQuiz))
+        Callback::from(move |_| state.dispatch(AppAction::ToggleMetronome))
     };
 
-    let on_quiz_exit = {
+    let on_enter_play_along = {
         let state = state.clone();
-        Callback::from(move |_| state.dispatch(AppAction::ExitQuiz))
+        Callback::from(move |id: ProgressionId| state.dispatch(AppAction::EnterPlayAlong(id)))
     };
 
-    let on_session_end = {
+    let on_play_along_stop = {
         let state = state.clone();
-        Callback::from(move |result: SessionResult| {
-            state.dispatch(AppAction::RecordQuizResult(result));
-            state.dispatch(AppAction::ExitQuiz);
+        Callback::from(move |_: ()| state.dispatch(AppAction::ExitPlayAlong))
+    };
+
+    let on_play_along_tick = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::PlayAlongTick))
+    };
+
+    let on_play_along_record_result = {
+        let state = state.clone();
+        Callback::from(move |result: ChordResult| {
+            state.dispatch(AppAction::RecordPlayAlongChordResult(result))
         })
     };
+
+    let on_clear_window = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::ClearRollingWindow))
+    };
+
+    // ── Derived: practice_target for PianoPanel ───────────────────────────────
+    let practice_target: Option<Vec<crate::music_theory::PitchClass>> =
+        if let Some(ref pa) = state.play_along_state {
+            crate::data::find_progression(pa.progression_id).and_then(|prog| {
+                let chords = crate::music_theory::diatonic_chords(prog.key);
+                prog.chords
+                    .get(pa.current_chord_index)
+                    .and_then(|&d| chords.iter().find(|c| c.degree == d))
+                    .map(|c| c.notes.to_vec())
+            })
+        } else {
+            None
+        };
 
     // ── Theme class ──────────────────────────────────────────────────────────
     let theme_class = match state.theme {
@@ -229,7 +321,17 @@ pub fn app() -> Html {
                 on_set_bpm={on_set_bpm}
                 on_toggle_theme={on_toggle_theme}
                 on_toggle_mute={on_toggle_mute}
-                on_enter_quiz={on_enter_quiz}
+                midi_status={state.midi_status}
+                metronome_active={state.metronome_active}
+                on_toggle_metronome={on_toggle_metronome}
+            />
+
+            <MidiStatusBar
+                midi_status={state.midi_status}
+                device_names={state.device_names.clone()}
+                recognized_chord={state.recognized_chord.clone()}
+                key_suggestions={state.key_suggestions.clone()}
+                on_clear_window={on_clear_window}
             />
 
             if let Some(err) = &state.audio_error {
@@ -238,12 +340,21 @@ pub fn app() -> Html {
                 </div>
             }
 
-            if state.quiz_active {
-                <QuizPanel
-                    best_scores={state.best_scores.clone()}
-                    on_session_end={on_session_end}
-                    on_exit={on_quiz_exit}
-                />
+            if state.app_mode == AppMode::PlayAlong {
+                if let Some(ref pa) = state.play_along_state {
+                    if let Some(progression) = crate::data::find_progression(pa.progression_id) {
+                        <PlayAlongPanel
+                            progression={progression}
+                            current_chord_index={pa.current_chord_index}
+                            bpm={state.bpm}
+                            held_notes={state.held_notes.clone()}
+                            score={pa.score.clone()}
+                            on_stop={on_play_along_stop}
+                            on_tick={on_play_along_tick}
+                            on_record_result={on_play_along_record_result}
+                        />
+                    }
+                }
             } else {
                 <div class="main-layout">
                     <CircleView
@@ -263,6 +374,8 @@ pub fn app() -> Html {
                             on_next={on_next}
                             on_prev={on_prev}
                             on_favorite_toggle={on_favorite_toggle}
+                            midi_status={state.midi_status}
+                            on_enter_play_along={on_enter_play_along}
                         />
                     </div>
                 </div>
@@ -277,6 +390,8 @@ pub fn app() -> Html {
                     octave_offset={state.octave_offset}
                     on_toggle_labels={on_toggle_labels}
                     on_octave_shift={on_octave_shift}
+                    held_notes={state.held_notes.clone()}
+                    practice_target={practice_target}
                 />
             </div>
         </div>

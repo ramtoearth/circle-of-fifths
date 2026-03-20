@@ -1,4 +1,5 @@
 pub mod music_theory;
+pub mod midi;
 pub mod state;
 pub mod data;
 pub mod audio;

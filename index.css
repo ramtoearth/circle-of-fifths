@@ -626,6 +626,21 @@ svg text {
   z-index: 2;
 }
 
+/* ── MIDI held note (opacity set inline via velocity_opacity()) ─────────────── */
+.piano-key.midi-held {
+  box-shadow: inset 0 0 0 3px rgba(100, 180, 255, 0.9);
+  z-index: 3;
+}
+
+/* ── Practice / Play-Along note feedback ────────────────────────────────────── */
+.piano-key.midi-correct {
+  background: #22c55e !important;
+}
+
+.piano-key.midi-incorrect {
+  background: #ef4444 !important;
+}
+
 /* Key labels */
 .piano-key__label {
   font-size: 9px;
@@ -789,3 +804,59 @@ svg text {
 .quiz-feedback { font-size: 14px; font-weight: 500; padding: 8px 12px; border-radius: 6px; }
 .quiz-feedback-correct   { background: color-mix(in srgb, var(--correct) 15%, transparent); color: var(--correct); }
 .quiz-feedback-incorrect { background: color-mix(in srgb, var(--incorrect) 15%, transparent); color: var(--incorrect); }
+
+/* ── MidiStatusBar ───────────────────────────────────────────────────────── */
+.midi-status-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 16px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.midi-status__badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.midi-status__badge--connected    { background: color-mix(in srgb, var(--correct) 20%, transparent); color: var(--correct); }
+.midi-status__badge--warning      { background: color-mix(in srgb, #f59e0b 20%, transparent); color: #f59e0b; }
+.midi-status__badge--error        { background: color-mix(in srgb, var(--incorrect) 20%, transparent); color: var(--incorrect); }
+
+.midi-status__devices  { color: var(--text); font-weight: 500; }
+.midi-status__notice   { font-style: italic; }
+
+.midi-status__chord    { color: var(--text); font-weight: 600; }
+.midi-status__roman    { color: var(--accent); }
+.midi-status__diatonic--yes { color: var(--correct); font-weight: 400; }
+.midi-status__diatonic--no  { color: #f59e0b; font-weight: 400; }
+
+.midi-status__key-suggestions { display: flex; align-items: center; gap: 4px; }
+.midi-status__key-chip {
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+}
+.midi-status__key-score { color: var(--text-muted); font-size: 11px; }
+
+.midi-status__clear-btn {
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.midi-status__clear-btn:hover { background: var(--surface); border-color: var(--accent); color: var(--text); }

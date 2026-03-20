@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use yew::Reducible;
 
-use crate::music_theory::{Key, DiatonicChord, ChordHighlight, diatonic_chords};
+use crate::music_theory::{Key, DiatonicChord, ChordHighlight, PitchClass, diatonic_chords};
+use crate::midi::{
+    HeldNote, KeySuggestion, MidiStatus, PlayAlongScore, RecognizedChord,
+};
 
 // Re-export progression types that now live in music_theory, so that existing
 // imports from `crate::state` continue to compile.
@@ -9,31 +12,29 @@ pub use crate::music_theory::{
     ProgressionId, BorrowedChord, ProgressionTag, Progression, ActiveProgression,
 };
 
-// ─────────────────────────── Quiz / app-level types ──────────────────────────
-
-/// Quiz question types.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum QuestionType {
-    KeySignatureAccidentals,
-    RelativeMinor,
-    ScaleNotes,
-}
-
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct Question {
-    pub q_type: QuestionType,
-    pub key: Key,
-}
-
-#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct BestScores {
-    pub key_sig: Option<u32>,
-    pub relative_minor: Option<u32>,
-    pub scale_notes: Option<u32>,
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Theme { Dark, Light }
+
+// ─────────────────────────── MIDI app-level types ────────────────────────────
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AppMode {
+    Normal,
+    PlayAlong,
+}
+
+impl Default for AppMode {
+    fn default() -> Self { AppMode::Normal }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlayAlongState {
+    pub progression_id: ProgressionId,
+    pub current_chord_index: usize,
+    pub score: PlayAlongScore,
+    pub started_at_ms: f64,
+    pub pre_play_along_metronome_active: bool,
+}
 
 /// Top-level app state.
 #[derive(Clone, Debug)]
@@ -47,9 +48,17 @@ pub struct AppState {
     pub theme: Theme,
     pub muted: bool,
     pub bpm: u32,
-    pub quiz_active: bool,
-    pub best_scores: BestScores,
     pub audio_error: Option<String>,
+    // ── MIDI fields ──────────────────────────────────────────────────────────
+    pub midi_status: MidiStatus,
+    pub device_names: Vec<String>,
+    pub held_notes: Vec<HeldNote>,
+    pub rolling_window: Vec<(PitchClass, f64)>,  // (pitch_class, timestamp_ms)
+    pub recognized_chord: Option<RecognizedChord>,
+    pub key_suggestions: Vec<KeySuggestion>,
+    pub app_mode: AppMode,
+    pub play_along_state: Option<PlayAlongState>,
+    pub metronome_active: bool,
 }
 
 impl Default for AppState {
@@ -64,18 +73,19 @@ impl Default for AppState {
             theme: Theme::Dark,
             muted: false,
             bpm: 120,
-            quiz_active: false,
-            best_scores: BestScores::default(),
             audio_error: None,
+            // MIDI defaults
+            midi_status: MidiStatus::Unavailable,
+            device_names: Vec::new(),
+            held_notes: Vec::new(),
+            rolling_window: Vec::new(),
+            recognized_chord: None,
+            key_suggestions: Vec::new(),
+            app_mode: AppMode::Normal,
+            play_along_state: None,
+            metronome_active: false,
         }
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct SessionResult {
-    pub correct: u32,
-    pub total: u32,
-    pub q_type_scores: BestScores,
 }
 
 /// All state transitions.
@@ -92,11 +102,22 @@ pub enum AppAction {
     ShiftOctave(i8),
     ToggleTheme,
     ToggleMute,
-    EnterQuiz,
-    ExitQuiz,
-    RecordQuizResult(SessionResult),
     SetAudioError(Option<String>),
     SetBpm(u32),
+    // ── MIDI actions ─────────────────────────────────────────────────────────
+    MidiStatusChanged(MidiStatus),
+    MidiDevicesChanged(Vec<String>),
+    /// Note-on: (held_note, timestamp_ms). velocity=0 is treated as NoteOff.
+    MidiNoteOn(HeldNote, f64),
+    MidiNoteOff(u8),              // midi_note number
+    UpdateRecognizedChord(Option<RecognizedChord>),
+    UpdateKeySuggestions(Vec<KeySuggestion>),
+    ClearRollingWindow,
+    EnterPlayAlong(ProgressionId),
+    ExitPlayAlong,
+    PlayAlongTick,
+    RecordPlayAlongChordResult(crate::midi::ChordResult),
+    ToggleMetronome,
 }
 
 // ─────────────────────────── Constants ───────────────────────────────────────
@@ -256,38 +277,145 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             ..state
         },
 
-        // ── Quiz ──────────────────────────────────────────────────────────
-        AppAction::EnterQuiz => AppState {
-            quiz_active: true,
-            ..state
-        },
-
-        AppAction::ExitQuiz => AppState {
-            quiz_active: false,
-            ..state
-        },
-
-        AppAction::RecordQuizResult(result) => {
-            let mut best = state.best_scores.clone();
-            if let Some(score) = result.q_type_scores.key_sig {
-                best.key_sig = Some(best.key_sig.map_or(score, |b| b.max(score)));
-            }
-            if let Some(score) = result.q_type_scores.relative_minor {
-                best.relative_minor = Some(best.relative_minor.map_or(score, |b| b.max(score)));
-            }
-            if let Some(score) = result.q_type_scores.scale_notes {
-                best.scale_notes = Some(best.scale_notes.map_or(score, |b| b.max(score)));
-            }
-            AppState { best_scores: best, ..state }
-        }
-
         // ── Audio error ───────────────────────────────────────────────────
         AppAction::SetAudioError(err) => AppState {
             audio_error: err,
             ..state
         },
 
-        AppAction::SetBpm(bpm) => AppState { bpm, ..state },
+        AppAction::SetBpm(bpm) => AppState { bpm: bpm.clamp(40, 200), ..state },
+
+        // ── MIDI ──────────────────────────────────────────────────────────
+
+        AppAction::MidiStatusChanged(status) => AppState {
+            midi_status: status,
+            ..state
+        },
+
+        // Property 12: empty device list clears held notes
+        AppAction::MidiDevicesChanged(names) => {
+            let held_notes = if names.is_empty() {
+                vec![]
+            } else {
+                state.held_notes.clone()
+            };
+            AppState { device_names: names, held_notes, ..state }
+        }
+
+        // Property 4: velocity=0 is treated as NoteOff
+        AppAction::MidiNoteOn(note, timestamp_ms) => {
+            if note.velocity == 0 {
+                let held_notes = state.held_notes.iter()
+                    .filter(|n| n.midi_note != note.midi_note)
+                    .cloned()
+                    .collect();
+                AppState { held_notes, ..state }
+            } else {
+                // Replace existing entry for same midi_note (retrigger)
+                let mut held_notes: Vec<HeldNote> = state.held_notes.iter()
+                    .filter(|n| n.midi_note != note.midi_note)
+                    .cloned()
+                    .collect();
+                held_notes.push(note);
+                let mut rolling_window = state.rolling_window.clone();
+                rolling_window.push((note.pitch_class, timestamp_ms));
+                AppState { held_notes, rolling_window, ..state }
+            }
+        }
+
+        // Property 1: NoteOff removes the note
+        AppAction::MidiNoteOff(midi_note) => {
+            let held_notes = state.held_notes.iter()
+                .filter(|n| n.midi_note != midi_note)
+                .cloned()
+                .collect();
+            AppState { held_notes, ..state }
+        }
+
+        AppAction::UpdateRecognizedChord(chord) => AppState {
+            recognized_chord: chord,
+            ..state
+        },
+
+        AppAction::UpdateKeySuggestions(suggestions) => AppState {
+            key_suggestions: suggestions,
+            ..state
+        },
+
+        // Property 11: clears rolling_window and key_suggestions
+        AppAction::ClearRollingWindow => AppState {
+            rolling_window: vec![],
+            key_suggestions: vec![],
+            ..state
+        },
+
+        AppAction::EnterPlayAlong(progression_id) => {
+            if state.app_mode != AppMode::Normal {
+                return state;
+            }
+            let pre = state.metronome_active;
+            AppState {
+                app_mode: AppMode::PlayAlong,
+                metronome_active: true,
+                play_along_state: Some(PlayAlongState {
+                    progression_id,
+                    current_chord_index: 0,
+                    score: PlayAlongScore::default(),
+                    started_at_ms: 0.0,
+                    pre_play_along_metronome_active: pre,
+                }),
+                ..state
+            }
+        }
+
+        // Property 16: resets to Normal, restores metronome
+        AppAction::ExitPlayAlong => {
+            let metronome_active = state.play_along_state
+                .as_ref()
+                .map(|ps| ps.pre_play_along_metronome_active)
+                .unwrap_or(state.metronome_active);
+            AppState {
+                app_mode: AppMode::Normal,
+                play_along_state: None,
+                metronome_active,
+                ..state
+            }
+        }
+
+        AppAction::PlayAlongTick => {
+            if let Some(ref pa) = state.play_along_state {
+                if let Some(progression) = crate::data::find_progression(pa.progression_id) {
+                    let next_idx = pa.current_chord_index + 1;
+                    if next_idx >= progression.chords.len() {
+                        // Progression complete — stay on last chord, UI handles exit
+                        return state;
+                    }
+                    let mut new_pa = pa.clone();
+                    new_pa.current_chord_index = next_idx;
+                    AppState { play_along_state: Some(new_pa), ..state }
+                } else {
+                    state
+                }
+            } else {
+                state
+            }
+        }
+
+        AppAction::RecordPlayAlongChordResult(result) => {
+            if let Some(ref pa) = state.play_along_state {
+                let mut new_pa = pa.clone();
+                new_pa.score.chord_results.push(result);
+                AppState { play_along_state: Some(new_pa), ..state }
+            } else {
+                state
+            }
+        }
+
+        // Property 17: flip metronome_active
+        AppAction::ToggleMetronome => AppState {
+            metronome_active: !state.metronome_active,
+            ..state
+        },
     }
 }
 
@@ -310,21 +438,6 @@ mod tests {
 
     fn c_major() -> Key { Key { root: PitchClass::C, mode: Mode::Major } }
     fn default_state() -> AppState { AppState::default() }
-
-    // ── Task 5.11: unit tests for state transitions ───────────────────────
-
-    #[test]
-    fn enter_quiz_sets_quiz_active() {
-        let s = app_reducer(default_state(), AppAction::EnterQuiz);
-        assert!(s.quiz_active);
-    }
-
-    #[test]
-    fn exit_quiz_clears_quiz_active() {
-        let s0 = app_reducer(default_state(), AppAction::EnterQuiz);
-        let s1 = app_reducer(s0, AppAction::ExitQuiz);
-        assert!(!s1.quiz_active);
-    }
 
     #[test]
     fn octave_clamp_at_max() {
@@ -474,5 +587,148 @@ mod tests {
         let orig_idx = s0.active_progression.unwrap().current_index;
         let final_idx = s.active_progression.unwrap().current_index;
         assert_eq!(final_idx, orig_idx);
+    }
+
+    // ── MIDI reducer property tests (Task 2.1) ────────────────────────────
+
+    mod property_tests {
+        use super::*;
+        use crate::midi::{HeldNote, KeySuggestion, PlayAlongScore};
+        use proptest::prelude::*;
+
+        fn any_midi_note() -> impl Strategy<Value = u8> { 0u8..=127u8 }
+        fn any_velocity() -> impl Strategy<Value = u8> { 1u8..=127u8 }
+        fn any_bpm() -> impl Strategy<Value = u32> { 0u32..=400u32 }
+
+        fn make_note(midi_note: u8, velocity: u8) -> HeldNote {
+            HeldNote::from_midi(midi_note, velocity)
+        }
+
+        fn play_along_state_in(metronome: bool) -> AppState {
+            AppState {
+                app_mode: AppMode::PlayAlong,
+                metronome_active: true,
+                play_along_state: Some(PlayAlongState {
+                    progression_id: 0,
+                    current_chord_index: 0,
+                    score: PlayAlongScore::default(),
+                    started_at_ms: 0.0,
+                    pre_play_along_metronome_active: metronome,
+                }),
+                ..AppState::default()
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 1: NoteOn/NoteOff round-trip
+        proptest! {
+            #[test]
+            fn prop_note_on_off_round_trip(
+                note in any_midi_note(),
+                vel  in any_velocity(),
+            ) {
+                let s0 = AppState::default(); // empty held_notes
+                let s1 = app_reducer(s0.clone(), AppAction::MidiNoteOn(make_note(note, vel), 0.0));
+                let s2 = app_reducer(s1, AppAction::MidiNoteOff(note));
+                prop_assert_eq!(s2.held_notes, s0.held_notes,
+                    "held_notes should be unchanged after NoteOn+NoteOff for note {}", note);
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 4: Velocity=0 treated as NoteOff
+        proptest! {
+            #[test]
+            fn prop_velocity_zero_is_note_off(
+                note in any_midi_note(),
+                vel  in any_velocity(),
+            ) {
+                // Place the note in held_notes, then send NoteOn with velocity=0
+                let s0 = app_reducer(AppState::default(), AppAction::MidiNoteOn(make_note(note, vel), 0.0));
+                prop_assume!(s0.held_notes.iter().any(|n| n.midi_note == note));
+
+                let zero_note = HeldNote {
+                    midi_note: note,
+                    velocity: 0,
+                    pitch_class: crate::music_theory::PitchClass::from_index(note % 12),
+                    octave: (note / 12) as i8 - 1,
+                };
+                let s1 = app_reducer(s0, AppAction::MidiNoteOn(zero_note, 0.0));
+                prop_assert!(!s1.held_notes.iter().any(|n| n.midi_note == note),
+                    "note {} should be removed when velocity=0 NoteOn is dispatched", note);
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 11: ClearRollingWindow resets state
+        proptest! {
+            #[test]
+            fn prop_clear_rolling_window(
+                note in any_midi_note(),
+                vel  in any_velocity(),
+            ) {
+                // Build state with a non-empty rolling_window and key_suggestions
+                let s0 = app_reducer(
+                    AppState { key_suggestions: vec![KeySuggestion {
+                        key: crate::music_theory::Key::major(crate::music_theory::PitchClass::C),
+                        score: 5,
+                    }], ..AppState::default() },
+                    AppAction::MidiNoteOn(make_note(note, vel), 1000.0),
+                );
+                prop_assume!(!s0.rolling_window.is_empty());
+
+                let s1 = app_reducer(s0, AppAction::ClearRollingWindow);
+                prop_assert!(s1.rolling_window.is_empty(),
+                    "rolling_window should be empty after ClearRollingWindow");
+                prop_assert!(s1.key_suggestions.is_empty(),
+                    "key_suggestions should be empty after ClearRollingWindow");
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 12: Device disconnection clears held notes
+        proptest! {
+            #[test]
+            fn prop_empty_devices_clears_held_notes(
+                note in any_midi_note(),
+                vel  in any_velocity(),
+            ) {
+                let s0 = app_reducer(AppState::default(), AppAction::MidiNoteOn(make_note(note, vel), 0.0));
+                prop_assume!(!s0.held_notes.is_empty());
+
+                let s1 = app_reducer(s0, AppAction::MidiDevicesChanged(vec![]));
+                prop_assert!(s1.held_notes.is_empty(),
+                    "held_notes should be empty after MidiDevicesChanged([])");
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 15: BPM clamping
+        proptest! {
+            #[test]
+            fn prop_set_bpm_clamped(bpm in any_bpm()) {
+                let s = app_reducer(AppState::default(), AppAction::SetBpm(bpm));
+                prop_assert!(s.bpm >= 40 && s.bpm <= 200,
+                    "bpm {} should be clamped to [40, 200], got {}", bpm, s.bpm);
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 16: ExitPlayAlong resets mode
+        proptest! {
+            #[test]
+            fn prop_exit_play_along_resets_mode(metronome in any::<bool>()) {
+                let s0 = play_along_state_in(metronome);
+                let s1 = app_reducer(s0, AppAction::ExitPlayAlong);
+                prop_assert_eq!(s1.app_mode, AppMode::Normal);
+                prop_assert!(s1.play_along_state.is_none());
+            }
+        }
+
+        // Feature: midi-keyboard-integration, Property 17: Metronome toggle round-trip
+        proptest! {
+            #[test]
+            fn prop_metronome_toggle_round_trip(initial in any::<bool>()) {
+                let s0 = AppState { metronome_active: initial, ..AppState::default() };
+                let s1 = app_reducer(s0.clone(), AppAction::ToggleMetronome);
+                let s2 = app_reducer(s1, AppAction::ToggleMetronome);
+                prop_assert_eq!(s2.metronome_active, s0.metronome_active,
+                    "metronome_active should be unchanged after two ToggleMetronome dispatches");
+            }
+        }
     }
 }

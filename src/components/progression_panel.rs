@@ -1,6 +1,7 @@
 use yew::prelude::*;
 
 use crate::data::{format_progression, progressions_for_key, resolve_roman};
+use crate::midi::MidiStatus;
 use crate::music_theory::{ActiveProgression, Key, Mode, Progression, ProgressionId, ProgressionTag};
 
 // ─────────────────────────── Props ───────────────────────────────────────────
@@ -14,6 +15,8 @@ pub struct ProgressionPanelProps {
     pub on_next: Callback<()>,
     pub on_prev: Callback<()>,
     pub on_favorite_toggle: Callback<ProgressionId>,
+    pub midi_status: MidiStatus,
+    pub on_enter_play_along: Callback<ProgressionId>,
 }
 
 // ─────────────────────────── Helpers ─────────────────────────────────────────
@@ -111,6 +114,14 @@ pub fn progression_panel(props: &ProgressionPanelProps) -> Html {
                 cb.emit(());
             })
         };
+        let on_play_along = {
+            let cb = props.on_enter_play_along.clone();
+            Callback::from(move |e: MouseEvent| {
+                e.stop_propagation();
+                cb.emit(id);
+            })
+        };
+        let midi_status = props.midi_status;
 
         // Tag chips
         let tags_html: Html = prog.tags.iter().map(|t| html! {
@@ -147,6 +158,21 @@ pub fn progression_panel(props: &ProgressionPanelProps) -> Html {
 
         // Next / prev controls — only shown on the active progression
         let controls_html = if is_active {
+            let play_along_html = if midi_status == MidiStatus::Connected {
+                html! {
+                    <button class="progression-btn progression-btn--play-along"
+                            onclick={on_play_along}
+                            aria-label="Play Along">
+                        {"Play Along"}
+                    </button>
+                }
+            } else {
+                html! {
+                    <span class="progression-panel__midi-hint">
+                        {"Connect a MIDI keyboard to use Play Along"}
+                    </span>
+                }
+            };
             html! {
                 <div class="progression-item__controls">
                     <button class="progression-btn progression-btn--prev"
@@ -159,6 +185,7 @@ pub fn progression_panel(props: &ProgressionPanelProps) -> Html {
                             aria-label="Next chord">
                         {"▶"}
                     </button>
+                    {play_along_html}
                 </div>
             }
         } else {

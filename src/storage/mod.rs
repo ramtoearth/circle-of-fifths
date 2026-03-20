@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::state::{AppState, BestScores, ProgressionId, Theme};
+use crate::state::{AppState, ProgressionId, Theme};
 
 #[allow(dead_code)]
 const KEY_THEME: &str = "cof_theme";
@@ -9,7 +9,7 @@ const KEY_MUTED: &str = "cof_muted";
 #[allow(dead_code)]
 const KEY_FAVORITES: &str = "cof_favorites";
 #[allow(dead_code)]
-const KEY_BEST_SCORES: &str = "cof_best_scores";
+const KEY_METRONOME_ACTIVE: &str = "cof_metronome_active";
 
 /// The subset of `AppState` that is persisted to localStorage.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -17,7 +17,7 @@ pub struct PersistedState {
     pub theme: Theme,
     pub muted: bool,
     pub favorites: Vec<ProgressionId>,
-    pub best_scores: BestScores,
+    pub metronome_active: bool,
 }
 
 impl Default for PersistedState {
@@ -26,7 +26,7 @@ impl Default for PersistedState {
             theme: Theme::Dark,
             muted: false,
             favorites: Vec::new(),
-            best_scores: BestScores::default(),
+            metronome_active: false,
         }
     }
 }
@@ -63,12 +63,12 @@ pub fn deserialize_favorites(s: &str) -> Vec<ProgressionId> {
     serde_json::from_str(s).unwrap_or_default()
 }
 
-pub fn serialize_best_scores(scores: &BestScores) -> String {
-    serde_json::to_string(scores).unwrap_or_else(|_| "{}".to_string())
+pub fn serialize_metronome_active(active: bool) -> String {
+    if active { "true".to_string() } else { "false".to_string() }
 }
 
-pub fn deserialize_best_scores(s: &str) -> BestScores {
-    serde_json::from_str(s).unwrap_or_default()
+pub fn deserialize_metronome_active(s: &str) -> bool {
+    s == "true"
 }
 
 // --- localStorage I/O (WASM only) ---
@@ -103,10 +103,10 @@ pub fn load_state() -> PersistedState {
         let favorites = ls_get(KEY_FAVORITES)
             .map(|s| deserialize_favorites(&s))
             .unwrap_or_default();
-        let best_scores = ls_get(KEY_BEST_SCORES)
-            .map(|s| deserialize_best_scores(&s))
-            .unwrap_or_default();
-        PersistedState { theme, muted, favorites, best_scores }
+        let metronome_active = ls_get(KEY_METRONOME_ACTIVE)
+            .map(|s| deserialize_metronome_active(&s))
+            .unwrap_or(false);
+        PersistedState { theme, muted, favorites, metronome_active }
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -121,7 +121,7 @@ pub fn save_state(state: &AppState) {
         ls_set(KEY_THEME, &serialize_theme(state.theme));
         ls_set(KEY_MUTED, &serialize_muted(state.muted));
         ls_set(KEY_FAVORITES, &serialize_favorites(&state.favorites));
-        ls_set(KEY_BEST_SCORES, &serialize_best_scores(&state.best_scores));
+        ls_set(KEY_METRONOME_ACTIVE, &serialize_metronome_active(state.metronome_active));
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -132,7 +132,6 @@ pub fn save_state(state: &AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::BestScores;
 
     // ------------------------------------------------------------------ //
     // Feature: circle-of-fifths, Property 18: localStorage round-trip    //
@@ -186,26 +185,6 @@ mod tests {
         assert_eq!(deserialize_favorites(&s), original);
     }
 
-    #[test]
-    fn best_scores_round_trip_default() {
-        let original = BestScores::default();
-        let s = serialize_best_scores(&original);
-        let decoded: BestScores = serde_json::from_str(&s).unwrap();
-        assert_eq!(decoded.key_sig, original.key_sig);
-        assert_eq!(decoded.relative_minor, original.relative_minor);
-        assert_eq!(decoded.scale_notes, original.scale_notes);
-    }
-
-    #[test]
-    fn best_scores_round_trip_with_values() {
-        let original = BestScores { key_sig: Some(10), relative_minor: Some(7), scale_notes: Some(12) };
-        let s = serialize_best_scores(&original);
-        let decoded: BestScores = serde_json::from_str(&s).unwrap();
-        assert_eq!(decoded.key_sig, original.key_sig);
-        assert_eq!(decoded.relative_minor, original.relative_minor);
-        assert_eq!(decoded.scale_notes, original.scale_notes);
-    }
-
     // ------------------------------------------------------------------ //
     // Task 6.2 — storage error handling                                   //
     // ------------------------------------------------------------------ //
@@ -234,20 +213,34 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_best_scores_invalid_json_falls_back_to_default() {
-        let result = deserialize_best_scores("not-json");
-        assert_eq!(result.key_sig, None);
-        assert_eq!(result.relative_minor, None);
-        assert_eq!(result.scale_notes, None);
-    }
-
-    #[test]
     fn load_state_returns_defaults_in_native_target() {
         // In non-WASM builds, load_state() always returns defaults.
         let state = load_state();
         assert_eq!(state.theme, Theme::Dark);
         assert_eq!(state.muted, false);
         assert!(state.favorites.is_empty());
-        assert_eq!(state.best_scores.key_sig, None);
+        assert_eq!(state.metronome_active, false);
+    }
+
+    #[test]
+    fn metronome_active_round_trip_true() {
+        let serialized = serialize_metronome_active(true);
+        assert_eq!(serialized, "true");
+        assert_eq!(deserialize_metronome_active(&serialized), true);
+    }
+
+    #[test]
+    fn metronome_active_round_trip_false() {
+        let serialized = serialize_metronome_active(false);
+        assert_eq!(serialized, "false");
+        assert_eq!(deserialize_metronome_active(&serialized), false);
+    }
+
+    #[test]
+    fn deserialize_metronome_active_unknown_value_falls_back_to_false() {
+        assert_eq!(deserialize_metronome_active("yes"), false);
+        assert_eq!(deserialize_metronome_active("1"), false);
+        assert_eq!(deserialize_metronome_active("True"), false);
+        assert_eq!(deserialize_metronome_active(""), false);
     }
 }
