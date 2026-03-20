@@ -31,7 +31,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Requirements: 1.7, 1.8, 2.1, 2.2, 2.5, 4.6, 6.2, 6.7, 7.1, 7.4_
   - _Depends on: 1_
 
-- [ ]* 2.1 Write property tests for MIDI reducer actions
+- [x]* 2.1 Write property tests for MIDI reducer actions
   - **Property 1: NoteOn/NoteOff round-trip** — `held_notes` unchanged after NoteOn+NoteOff for same note
   - **Property 4: Velocity=0 treated as NoteOff** — NoteOn with velocity=0 removes note from `held_notes`
   - **Property 11: ClearRollingWindow resets state** — `rolling_window` and `key_suggestions` both empty after dispatch
@@ -129,7 +129,7 @@ All Rust-only logic (note math, chord recognition, key detection, reducer) is te
   - _Validates: Requirements 5.3, 6.4_
   - _Depends on: 9_
 
-- [ ] 10. Extend `NavBar` with Practice mode entry and Metronome toggle
+- [x] 10. Extend `NavBar` with Practice mode entry and Metronome toggle
   - Note: `selected_key`, `bpm`, and `on_set_bpm` props already exist in `NavBarProps` and are wired in task 4.3
   - Add `midi_status: MidiStatus`, `on_enter_practice: Callback<()>`, `metronome_active: bool`, and `on_toggle_metronome: Callback<()>` props to `NavBar` in `src/components/nav_bar.rs`
   - Render "Practice" button only when `midi_status == MidiStatus::Connected`; if not connected, show inline message per Requirement 5.7

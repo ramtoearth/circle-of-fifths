@@ -1,6 +1,7 @@
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 
+use crate::midi::MidiStatus;
 use crate::music_theory::{Key, Mode};
 use crate::state::Theme;
 
@@ -14,6 +15,10 @@ pub struct NavBarProps {
     pub on_toggle_theme: Callback<()>,
     pub on_toggle_mute: Callback<()>,
     pub on_enter_quiz: Callback<()>,
+    pub midi_status: MidiStatus,
+    pub metronome_active: bool,
+    pub on_enter_practice: Callback<()>,
+    pub on_toggle_metronome: Callback<()>,
 }
 
 #[function_component(NavBar)]
@@ -21,6 +26,8 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
     let on_toggle_theme = props.on_toggle_theme.reform(|_: MouseEvent| ());
     let on_toggle_mute = props.on_toggle_mute.reform(|_: MouseEvent| ());
     let on_enter_quiz = props.on_enter_quiz.reform(|_: MouseEvent| ());
+    let on_enter_practice = props.on_enter_practice.reform(|_: MouseEvent| ());
+    let on_toggle_metronome = props.on_toggle_metronome.reform(|_: MouseEvent| ());
 
     let theme_label = match props.theme {
         Theme::Dark => "Light Mode",
@@ -28,6 +35,7 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
     };
 
     let mute_label = if props.muted { "Unmute" } else { "Mute" };
+    let metronome_label = if props.metronome_active { "Metronome: On" } else { "Metronome: Off" };
 
     let key_label = props.selected_key.map(|k| {
         let mode_str = match k.mode {
@@ -71,6 +79,19 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
                 <button class="nav-bar__btn nav-bar__btn--quiz" onclick={on_enter_quiz}>
                     { "Quiz Mode" }
                 </button>
+                <button
+                    class="nav-bar__btn nav-bar__btn--metronome"
+                    onclick={on_toggle_metronome}
+                >
+                    { metronome_label }
+                </button>
+                if props.midi_status == MidiStatus::Connected {
+                    <button class="nav-bar__btn nav-bar__btn--practice" onclick={on_enter_practice}>
+                        { "Practice" }
+                    </button>
+                } else {
+                    <span class="nav-bar__midi-hint">{ "Connect a MIDI device to use Practice mode" }</span>
+                }
             </div>
         </nav>
     }

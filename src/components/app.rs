@@ -23,6 +23,7 @@ pub fn app() -> Html {
             s.muted = persisted.muted;
             s.favorites = persisted.favorites;
             s.best_scores = persisted.best_scores;
+            s.metronome_active = persisted.metronome_active;
             s
         })
     };
@@ -62,6 +63,7 @@ pub fn app() -> Html {
                 state.muted,
                 state.favorites.clone(),
                 state.best_scores.clone(),
+                state.metronome_active,
             ),
             move |_| {
                 save_state(&state_val);
@@ -199,6 +201,21 @@ pub fn app() -> Html {
         Callback::from(move |_| state.dispatch(AppAction::EnterQuiz))
     };
 
+    let on_enter_practice = {
+        let state = state.clone();
+        Callback::from(move |_| state.dispatch(AppAction::EnterPractice))
+    };
+
+    let on_toggle_metronome = {
+        let state = state.clone();
+        Callback::from(move |_| state.dispatch(AppAction::ToggleMetronome))
+    };
+
+    let on_enter_play_along = {
+        let state = state.clone();
+        Callback::from(move |id: ProgressionId| state.dispatch(AppAction::EnterPlayAlong(id)))
+    };
+
     let on_quiz_exit = {
         let state = state.clone();
         Callback::from(move |_| state.dispatch(AppAction::ExitQuiz))
@@ -230,6 +247,10 @@ pub fn app() -> Html {
                 on_toggle_theme={on_toggle_theme}
                 on_toggle_mute={on_toggle_mute}
                 on_enter_quiz={on_enter_quiz}
+                midi_status={state.midi_status}
+                metronome_active={state.metronome_active}
+                on_enter_practice={on_enter_practice}
+                on_toggle_metronome={on_toggle_metronome}
             />
 
             if let Some(err) = &state.audio_error {
@@ -263,6 +284,8 @@ pub fn app() -> Html {
                             on_next={on_next}
                             on_prev={on_prev}
                             on_favorite_toggle={on_favorite_toggle}
+                            midi_status={state.midi_status}
+                            on_enter_play_along={on_enter_play_along}
                         />
                     </div>
                 </div>
