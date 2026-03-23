@@ -39,6 +39,11 @@ pub fn app() -> Html {
     // Option<MidiEngine> stored in a ref so closures (JS callbacks) are not dropped.
     let midi_engine = use_mut_ref(|| Option::<MidiEngine>::None);
 
+    // ── Cancellable playback ──────────────────────────────────────────────────
+    // Stores all Timeout handles for the active playback session.
+    // Dropping the Vec cancels every pending callback.
+    let animation_handles = use_mut_ref(|| Vec::<Timeout>::new());
+
     // Sync audio error into state on mount
     {
         let state = state.clone();
@@ -138,24 +143,44 @@ pub fn app() -> Html {
         let state = state.clone();
         let audio = audio.clone();
         let playing_note = playing_note.clone();
+        let animation_handles = animation_handles.clone();
         Callback::from(move |key| {
-            if state.selected_key != Some(key) {
-                audio.play_scale(key, state.bpm);
-                // Schedule per-note visual highlight to match audio playback
-                let notes = crate::audio::scale_note_sequence_with_octaves(key);
-                let interval_ms = (60_000.0 / state.bpm as f64) as u32;
-                for (i, &(pitch, octave)) in notes.iter().enumerate() {
-                    let playing_note = playing_note.clone();
-                    Timeout::new(i as u32 * interval_ms, move || {
-                        playing_note.set(Some((pitch, octave)));
-                    }).forget();
-                }
-                // Clear after all 8 notes
-                let playing_note = playing_note.clone();
-                Timeout::new(notes.len() as u32 * interval_ms, move || {
-                    playing_note.set(None);
-                }).forget();
+            // Cancel any active session first
+            animation_handles.borrow_mut().clear();
+            audio.stop();
+            playing_note.set(None);
+            state.dispatch(AppAction::SetPlaying(false));
+
+            if state.selected_key == Some(key) {
+                // Clicking the already-selected segment: cancel and deselect, no new session
+                state.dispatch(AppAction::SelectKey(key));
+                return;
             }
+
+            // Start new session
+            audio.play_scale(key, state.bpm);
+            let notes = crate::audio::scale_note_sequence_with_octaves(key);
+            let interval_ms = 60_000u32 / state.bpm.max(1);
+            for (i, &(pitch, octave)) in notes.iter().enumerate() {
+                let playing_note = playing_note.clone();
+                let handle = Timeout::new(i as u32 * interval_ms, move || {
+                    playing_note.set(Some((pitch, octave)));
+                });
+                animation_handles.borrow_mut().push(handle);
+            }
+            // Final cleanup timeout
+            {
+                let playing_note = playing_note.clone();
+                let animation_handles_cb = animation_handles.clone();
+                let state = state.clone();
+                let handle = Timeout::new(notes.len() as u32 * interval_ms, move || {
+                    playing_note.set(None);
+                    animation_handles_cb.borrow_mut().clear();
+                    state.dispatch(AppAction::SetPlaying(false));
+                });
+                animation_handles.borrow_mut().push(handle);
+            }
+            state.dispatch(AppAction::SetPlaying(true));
             state.dispatch(AppAction::SelectKey(key));
         })
     };

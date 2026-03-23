@@ -29,7 +29,7 @@ in `AppState` drives Stop button visibility.
     - **Property 3: SetPlaying round-trip**
     - **Validates: Requirements 1.1, 1.2**
 
-- [ ] 2. Add `animation_handles` ref and `cancel_active_session` closure to App
+- [x] 2. Add `animation_handles` ref and `cancel_active_session` closure to App
   - In `src/components/app.rs`, add `let animation_handles = use_mut_ref(|| Vec::<Timeout>::new());`
   - Define a `cancel_active_session` closure that:
     - Calls `animation_handles.borrow_mut().clear()` (drops all `Timeout`s, cancelling callbacks)
@@ -38,7 +38,7 @@ in `AppState` drives Stop button visibility.
     - Dispatches `AppAction::SetPlaying(false)`
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 5.1, 5.2_
 
-- [ ] 3. Modify `on_segment_click` to cancel before starting new playback
+- [x] 3. Modify `on_segment_click` to cancel before starting new playback
   - Call `cancel_active_session()` at the top of `on_segment_click`
   - After scheduling each `Timeout` for the scale animation, push the handle into
     `animation_handles` instead of calling `.forget()`
