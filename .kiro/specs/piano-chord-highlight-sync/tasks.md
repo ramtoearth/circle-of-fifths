@@ -88,13 +88,17 @@
       `i * 1000 ms`. Single-chord progressions produce an empty `1..1` range — no timers scheduled.
       `SelectProgression` dispatch and `audio.play_progression` call are unchanged. All 121 tests pass.
 
-  - [ ] 3.3 Write unit tests for the new reducer arm (depends on 3.1 + 3.2)
+  - [x] 3.3 Write unit tests for the new reducer arm (depends on 3.1 + 3.2)
     - `advance_progression_chord_updates_highlight`: dispatch `SelectProgression(id)` then `AdvanceProgressionChord(i)` for each valid index `i` in `1..len`; assert `highlighted_chord` matches `chord_highlight_at(progression, i)` and `current_index == i`
     - `advance_progression_chord_noop_when_no_active`: dispatch `AdvanceProgressionChord(1)` on default state; assert state is unchanged
     - `advance_progression_chord_noop_after_key_change`: dispatch `SelectProgression(id)`, then `SelectKey(k)`, then `AdvanceProgressionChord(1)`; assert `highlighted_chord` is `None` and `active_progression` is `None`
     - `advance_progression_chord_noop_for_stale_index`: dispatch `SelectProgression(id)`, then `AdvanceProgressionChord(2)`, then `AdvanceProgressionChord(1)`; assert `current_index` is still 2 (stale dispatch rejected)
     - `advance_progression_chord_noop_after_progression_switch`: dispatch `SelectProgression(A)`, then `SelectProgression(B)`, then `AdvanceProgressionChord(1)`; assert `active_progression.id == B` and `current_index == 0` (stale timer from A is rejected because `current_index` guard fires — note: this relies on the id-match guard described in design Change 4; add id check to reducer if not already present)
     - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4_
+    - **COMPLETED**: All 5 unit tests added in `tests::advance_progression_chord_tests` in
+      `src/state/mod.rs`. Uses `ID_A = 0` (C major I–V–vi–IV) and `ID_B = 5` (G major) as
+      distinct progression IDs. All guards verified: no-active, key-change clears state,
+      stale-index rejected, stale-id rejected by id-match guard. 126 tests pass.
 
   - [ ] 3.4 Write integration tests for full playback simulation (depends on 3.1 + 3.2)
     - Full playback simulation: dispatch `SelectProgression(id)`, then sequentially dispatch `AdvanceProgressionChord(1)`, `AdvanceProgressionChord(2)`, … up to `len-1`; assert `highlighted_chord` matches each chord in order

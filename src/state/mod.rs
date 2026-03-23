@@ -856,6 +856,95 @@ mod tests {
         }
     }
 
+    // ── Task 3.3: Unit tests for AdvanceProgressionChord reducer arm ──────
+
+    mod advance_progression_chord_tests {
+        use super::*;
+
+        // ID 0 = I–V–vi–IV in C major (4 chords); guaranteed multi-chord.
+        const ID_A: ProgressionId = 0;
+        // ID 5 = I–V–vi–IV in G major (4 chords); used as a distinct second progression.
+        const ID_B: ProgressionId = 5;
+
+        #[test]
+        fn advance_progression_chord_updates_highlight() {
+            let progression = crate::data::find_progression(ID_A).unwrap();
+            let len = progression.chords.len();
+            assert!(len > 1, "progression {ID_A} must have >1 chord");
+
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID_A));
+            assert!(s0.active_progression.is_some());
+
+            for i in 1..len {
+                let si = app_reducer(s0.clone(), AppAction::AdvanceProgressionChord(ID_A, i));
+                let expected = chord_highlight_at(&progression, i);
+                assert_eq!(si.highlighted_chord, expected,
+                    "highlighted_chord should match chord at index {i}");
+                assert_eq!(si.active_progression.unwrap().current_index, i,
+                    "current_index should be {i} after AdvanceProgressionChord({i})");
+            }
+        }
+
+        #[test]
+        fn advance_progression_chord_noop_when_no_active() {
+            let s0 = default_state();
+            let s1 = app_reducer(s0.clone(), AppAction::AdvanceProgressionChord(ID_A, 1));
+            assert_eq!(s1.active_progression, s0.active_progression);
+            assert_eq!(s1.highlighted_chord, s0.highlighted_chord);
+        }
+
+        #[test]
+        fn advance_progression_chord_noop_after_key_change() {
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID_A));
+            assert!(s0.active_progression.is_some());
+
+            let new_key = Key { root: PitchClass::G, mode: Mode::Major };
+            let s1 = app_reducer(s0, AppAction::SelectKey(new_key));
+            assert_eq!(s1.active_progression, None);
+
+            let s2 = app_reducer(s1, AppAction::AdvanceProgressionChord(ID_A, 1));
+            assert_eq!(s2.highlighted_chord, None,
+                "highlighted_chord should remain None after key change clears progression");
+            assert_eq!(s2.active_progression, None,
+                "active_progression should remain None after key change");
+        }
+
+        #[test]
+        fn advance_progression_chord_noop_for_stale_index() {
+            let progression = crate::data::find_progression(ID_A).unwrap();
+            assert!(progression.chords.len() > 2, "progression {ID_A} must have >2 chords");
+
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID_A));
+            let s1 = app_reducer(s0, AppAction::AdvanceProgressionChord(ID_A, 2));
+            assert_eq!(s1.active_progression.as_ref().unwrap().current_index, 2);
+
+            // Dispatching index 1 after index 2 has already been applied must be a no-op
+            let s2 = app_reducer(s1.clone(), AppAction::AdvanceProgressionChord(ID_A, 1));
+            assert_eq!(s2.active_progression.as_ref().unwrap().current_index, 2,
+                "current_index should stay at 2 — stale index 1 must be rejected");
+            assert_eq!(s2.highlighted_chord, s1.highlighted_chord,
+                "highlighted_chord should be unchanged after stale dispatch");
+        }
+
+        #[test]
+        fn advance_progression_chord_noop_after_progression_switch() {
+            // Simulate: timer for progression A fires after user switched to B.
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID_A));
+            let s1 = app_reducer(s0, AppAction::SelectProgression(ID_B));
+            assert_eq!(s1.active_progression.as_ref().unwrap().id, ID_B);
+            assert_eq!(s1.active_progression.as_ref().unwrap().current_index, 0);
+
+            // Stale timer from A dispatches AdvanceProgressionChord with A's id — must be no-op
+            let s2 = app_reducer(s1.clone(), AppAction::AdvanceProgressionChord(ID_A, 1));
+            assert_eq!(s2.active_progression.as_ref().unwrap().id, ID_B,
+                "active progression should still be B after stale timer from A");
+            assert_eq!(s2.active_progression.as_ref().unwrap().current_index, 0,
+                "current_index should remain 0 — stale A timer must be rejected by id guard");
+            assert_eq!(s2.highlighted_chord, s1.highlighted_chord,
+                "highlighted_chord should be unchanged after stale A dispatch");
+        }
+    }
+
     // ── MIDI reducer property tests (Task 2.1) ────────────────────────────
 
     mod property_tests {
