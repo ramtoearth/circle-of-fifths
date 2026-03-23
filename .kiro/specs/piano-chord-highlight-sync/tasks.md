@@ -121,12 +121,14 @@
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
     - _Requirements: 2.1, 2.2, 2.3_
 
-  - [ ] 3.6 Verify preservation tests still pass (depends on 3.1 + 3.2)
+  - [x] 3.6 Verify preservation tests still pass (depends on 3.1 + 3.2)
     - **Property 2: Preservation** - Non-Playback Behaviors Unchanged
     - **IMPORTANT**: Re-run the SAME tests from task 2 — do NOT write new tests
     - Run preservation property tests from step 2
     - **EXPECTED OUTCOME**: Tests PASS (confirms no regressions in `NextChord`, `PrevChord`, `SelectChord`, `SelectKey`)
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
+    - **COMPLETED**: Re-ran `state::tests::preservation` — all 8 tests pass. No regressions in
+      `NextChord`, `PrevChord`, `SelectChord`, or `SelectKey` behavior.
 
 - [ ] 4. Checkpoint — Ensure all tests pass
   - Run `cargo test` and confirm all tests pass
