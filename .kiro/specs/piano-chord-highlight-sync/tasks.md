@@ -73,7 +73,7 @@
       Also re-enabled the task 1 PBT (removed `#[cfg(any())]` gate) and updated its call site.
       All 121 tests pass (`cargo test`).
 
-  - [ ] 3.2 Schedule `Timeout` callbacks in `on_progression_click` in `src/components/app.rs`
+  - [x] 3.2 Schedule `Timeout` callbacks in `on_progression_click` in `src/components/app.rs`
     - In `on_progression_click`, after calling `audio.play_progression(p)` and before dispatching `SelectProgression(id)`, add a loop over `1..progression.chords.len()`
     - For each index `i`, create a `Timeout::new((i as u32) * 1000, move || { state.dispatch(AppAction::AdvanceProgressionChord(i)); }).forget()`
     - Clone `state` before the loop so each closure captures its own clone
@@ -83,6 +83,10 @@
     - _Expected_Behavior: one `Timeout` per chord index 1..len, each dispatching `AdvanceProgressionChord(i)` at `i * 1000 ms`_
     - _Preservation: `SelectProgression` dispatch and `audio.play_progression` call are unchanged_
     - _Requirements: 2.1, 2.2, 2.3_
+    - **COMPLETED**: Added timer loop inside the `if let Some(ref p)` block in `on_progression_click`.
+      Each closure clones `state` independently and dispatches `AdvanceProgressionChord(id, i)` at
+      `i * 1000 ms`. Single-chord progressions produce an empty `1..1` range — no timers scheduled.
+      `SelectProgression` dispatch and `audio.play_progression` call are unchanged. All 121 tests pass.
 
   - [ ] 3.3 Write unit tests for the new reducer arm (depends on 3.1 + 3.2)
     - `advance_progression_chord_updates_highlight`: dispatch `SelectProgression(id)` then `AdvanceProgressionChord(i)` for each valid index `i` in `1..len`; assert `highlighted_chord` matches `chord_highlight_at(progression, i)` and `current_index == i`
