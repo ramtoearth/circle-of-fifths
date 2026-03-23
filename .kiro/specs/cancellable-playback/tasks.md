@@ -86,7 +86,7 @@ in `AppState` drives Stop button visibility.
   - [x]* 8.2 Write property test for Property 5: Idle State chord highlight correctness
   - [x]* 8.3 Write property test for Property 6: Animation handle collection is empty after clear
 
-- [ ] 9. Final checkpoint — Ensure all tests pass
+- [x] 9. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
