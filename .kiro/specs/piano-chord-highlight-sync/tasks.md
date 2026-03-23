@@ -56,7 +56,7 @@
   > Tasks 3.1 and 3.2 are **independent and can run in parallel**.
   > Tasks 3.3 and 3.4 are **independent and can run in parallel**, but both depend on 3.1 and 3.2.
 
-  - [ ] 3.1 Add `AdvanceProgressionChord(usize)` action and reducer arm in `src/state/mod.rs`
+  - [x] 3.1 Add `AdvanceProgressionChord(usize)` action and reducer arm in `src/state/mod.rs`
     - Add `AdvanceProgressionChord(usize)` variant to the `AppAction` enum
     - Add reducer arm in `app_reducer` for `AdvanceProgressionChord(target_index)`:
       - Guard: if `active_progression` is `None`, return state unchanged
@@ -66,6 +66,12 @@
     - _Expected_Behavior: after `AdvanceProgressionChord(i)`, `state.highlighted_chord == chord_highlight_at(progression, i)` and `state.active_progression.current_index == i`_
     - _Preservation: guard clause ensures `NextChord`, `PrevChord`, `SelectChord`, `SelectKey` arms are completely unaffected_
     - _Requirements: 2.1, 2.2, 2.3_
+    - **COMPLETED**: Implemented `AdvanceProgressionChord(ProgressionId, usize)` (carrying the ID enables
+      the id-match guard required by design Change 4 and task 3.3's stale-switch test). Reducer arm has
+      three guards: (1) no active progression → no-op; (2) id mismatch → no-op (stale timer after
+      progression switch); (3) `current_index >= target_index` → no-op (idempotency / stale dispatch).
+      Also re-enabled the task 1 PBT (removed `#[cfg(any())]` gate) and updated its call site.
+      All 121 tests pass (`cargo test`).
 
   - [ ] 3.2 Schedule `Timeout` callbacks in `on_progression_click` in `src/components/app.rs`
     - In `on_progression_click`, after calling `audio.play_progression(p)` and before dispatching `SelectProgression(id)`, add a loop over `1..progression.chords.len()`

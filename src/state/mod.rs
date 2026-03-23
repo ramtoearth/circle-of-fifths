@@ -118,6 +118,10 @@ pub enum AppAction {
     PlayAlongTick,
     RecordPlayAlongChordResult(crate::midi::ChordResult),
     ToggleMetronome,
+    /// Dispatched by a timer callback in `on_progression_click` to advance the piano highlight
+    /// in lockstep with audio playback. Carries (progression_id, target_index) so the reducer
+    /// can reject stale callbacks after a progression switch or key change.
+    AdvanceProgressionChord(ProgressionId, usize),
 }
 
 // ─────────────────────────── Constants ───────────────────────────────────────
@@ -416,6 +420,32 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             metronome_active: !state.metronome_active,
             ..state
         },
+
+        // ── Progression playback sync (piano-chord-highlight-sync fix) ────────
+        AppAction::AdvanceProgressionChord(progression_id, target_index) => {
+            if let Some(ref active) = state.active_progression {
+                // Guard 1: reject if the active progression has changed since the timer was scheduled
+                if active.id != progression_id {
+                    return state;
+                }
+                // Guard 2: reject stale/duplicate dispatches (idempotency)
+                if active.current_index >= target_index {
+                    return state;
+                }
+                if let Some(progression) = crate::data::find_progression(progression_id) {
+                    let highlighted_chord = chord_highlight_at(&progression, target_index);
+                    return AppState {
+                        active_progression: Some(ActiveProgression {
+                            id: active.id,
+                            current_index: target_index,
+                        }),
+                        highlighted_chord,
+                        ..state
+                    };
+                }
+            }
+            state // no-op: no active progression
+        }
     }
 }
 
@@ -623,19 +653,9 @@ mod tests {
         use super::*;
         use proptest::prelude::*;
 
-        /// Bug condition exploration test — FAILS TO COMPILE on unfixed code.
-        /// AdvanceProgressionChord(usize) variant does not exist in AppAction yet.
-        /// Failure confirms: the action is missing, so highlighted_chord can never advance
-        /// programmatically during audio playback.
-        ///
-        /// Task 1 complete: compile error was observed and documented (counterexample:
-        /// "AdvanceProgressionChord variant does not exist; highlighted_chord stays frozen at index 0").
-        /// Gated with #[cfg(any())] so Task 2 preservation tests can compile and run.
-        /// Remove the cfg gate in Task 3.5 once AdvanceProgressionChord is implemented.
-        ///
-        /// EXPECTED OUTCOME on unfixed code: compile error (observed — Task 1 COMPLETE)
-        /// EXPECTED OUTCOME after fix (Task 3.5): test passes
-        #[cfg(any())] // Task 1 complete — re-enable in Task 3.5 after fix
+        /// Bug condition exploration test — Task 3.5: re-enabled after fix.
+        /// Task 1 documented the compile error; now AdvanceProgressionChord(ProgressionId, usize)
+        /// exists and the test validates the fix (Property 1: Bug Condition).
         proptest! {
             #[test]
             fn prop_advance_progression_chord_updates_highlight(
@@ -648,8 +668,7 @@ mod tests {
                 let s0 = app_reducer(default_state(), AppAction::SelectProgression(id));
                 prop_assume!(s0.active_progression.is_some());
 
-                // AdvanceProgressionChord does not exist on unfixed code — compile error here
-                let s1 = app_reducer(s0, AppAction::AdvanceProgressionChord(target_index));
+                let s1 = app_reducer(s0, AppAction::AdvanceProgressionChord(id, target_index));
 
                 let expected = chord_highlight_at(&progression, target_index);
                 prop_assert_eq!(s1.highlighted_chord, expected,
