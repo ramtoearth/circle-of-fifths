@@ -49,7 +49,7 @@ in `AppState` drives Stop button visibility.
     dispatch `SelectKey` (deselect) — do not start a new session
   - _Requirements: 3.1, 3.2, 3.3, 5.3, 5.4_
 
-- [ ] 4. Modify `on_progression_click` to cancel before starting new playback
+- [x] 4. Modify `on_progression_click` to cancel before starting new playback
   - Call `cancel_active_session()` at the top of `on_progression_click`
   - Schedule one `Timeout` per chord at `i * 1000 ms`; each timeout dispatches the equivalent
     of advancing `active_progression.current_index` (dispatch `AppAction::SelectProgression`

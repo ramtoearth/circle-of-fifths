@@ -197,21 +197,53 @@ pub fn app() -> Html {
     let on_progression_click = {
         let state = state.clone();
         let audio = audio.clone();
+        let animation_handles = animation_handles.clone();
+        let playing_note = playing_note.clone();
         Callback::from(move |id: ProgressionId| {
-            if let Some(ref p) = crate::data::find_progression(id) {
-                audio.play_progression(p);
-                // Schedule one Timeout per chord (indices 1..len) to advance the piano
-                // highlight in lockstep with the audio timeline (1 chord per second).
-                // Each closure captures its own state clone so dispatches are independent.
-                // The reducer's id-match and index guards make stale dispatches no-ops.
-                for i in 1..p.chords.len() {
-                    let state = state.clone();
-                    Timeout::new(i as u32 * 1000, move || {
-                        state.dispatch(AppAction::AdvanceProgressionChord(id, i));
-                    }).forget();
-                }
+            // Cancel any active session first
+            animation_handles.borrow_mut().clear();
+            audio.stop();
+            playing_note.set(None);
+            state.dispatch(AppAction::SetPlaying(false));
+
+            // If same progression is already active, only cancel — no restart
+            if state.active_progression.as_ref().map(|a| a.id) == Some(id) {
+                return;
             }
+
+            let prog = match crate::data::find_progression(id) {
+                Some(p) => p,
+                None => {
+                    state.dispatch(AppAction::SelectProgression(id));
+                    return;
+                }
+            };
+
+            audio.play_progression(&prog);
+            // SelectProgression sets index to 0 and highlights the first chord
             state.dispatch(AppAction::SelectProgression(id));
+
+            // Schedule NextChord for each subsequent chord (i=0 is already set by SelectProgression)
+            for i in 1..prog.chords.len() {
+                let state_cb = state.clone();
+                let handle = Timeout::new(i as u32 * 1000, move || {
+                    state_cb.dispatch(AppAction::NextChord);
+                });
+                animation_handles.borrow_mut().push(handle);
+            }
+
+            // Final cleanup timeout
+            {
+                let animation_handles_cb = animation_handles.clone();
+                let state_cb = state.clone();
+                let handle = Timeout::new(prog.chords.len() as u32 * 1000, move || {
+                    animation_handles_cb.borrow_mut().clear();
+                    state_cb.dispatch(AppAction::SetPlaying(false));
+                });
+                animation_handles.borrow_mut().push(handle);
+            }
+
+            state.dispatch(AppAction::SetPlaying(true));
         })
     };
 
