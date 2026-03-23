@@ -132,10 +132,15 @@
     - **COMPLETED**: Re-ran `state::tests::preservation` — all 8 tests pass. No regressions in
       `NextChord`, `PrevChord`, `SelectChord`, or `SelectKey` behavior.
 
-- [ ] 4. Checkpoint — Ensure all tests pass
+- [x] 4. Checkpoint — Ensure all tests pass
   - Run `cargo test` and confirm all tests pass
   - Confirm the exploration test (task 1) now passes after the fix
   - Confirm the preservation tests (task 2) still pass
   - Confirm all unit tests (task 3.3) pass
   - Confirm all integration tests (task 3.4) pass
   - Ask the user if any questions arise
+  - **COMPLETED**: `cargo test` — 130 passed, 0 failed.
+    - Task 1 (`bug_condition_exploration`): 1 proptest PASS ✓
+    - Task 2 (`preservation`): 8 tests PASS ✓
+    - Task 3.3 (`advance_progression_chord_tests`): 5 tests PASS ✓
+    - Task 3.4 (`integration_tests`): 4 tests PASS ✓
