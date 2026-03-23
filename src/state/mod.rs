@@ -589,6 +589,71 @@ mod tests {
         assert_eq!(final_idx, orig_idx);
     }
 
+    // ── Task 1: Bug condition exploration tests ───────────────────────────
+    // Feature: piano-chord-highlight-sync
+    // Bug Condition: highlighted_chord does not advance after SelectProgression
+
+    /// Deterministic "frozen highlight" test — documents the bug by absence of advancement.
+    /// PASSES on unfixed code: confirms that after SelectProgression, highlighted_chord is
+    /// stuck at index 0 with no mechanism to advance it further.
+    /// COUNTEREXAMPLE: current_index stays 0 indefinitely — no AdvanceProgressionChord action exists.
+    #[test]
+    fn frozen_highlight_documents_the_bug() {
+        let id: ProgressionId = 0; // I–V–vi–IV in C major (4 chords)
+        let s0 = app_reducer(default_state(), AppAction::SelectProgression(id));
+        assert!(s0.active_progression.is_some(), "progression should be active after SelectProgression");
+
+        let progression = crate::data::find_progression(id).unwrap();
+        assert!(progression.chords.len() > 1, "progression 0 must have more than 1 chord for this test to be meaningful");
+
+        let expected_chord_0 = chord_highlight_at(&progression, 0);
+        assert_eq!(s0.highlighted_chord, expected_chord_0,
+            "highlighted_chord should equal chord at index 0 immediately after SelectProgression");
+        assert_eq!(s0.active_progression.as_ref().unwrap().current_index, 0,
+            "current_index should be 0 after SelectProgression");
+
+        // No further actions are dispatched — simulating that audio plays but state never advances.
+        // COUNTEREXAMPLE: highlighted_chord is still index 0 even though audio would be on chord 1+.
+        // This documents the freeze: the highlighted_chord has no way to advance during playback.
+        assert_eq!(s0.active_progression.unwrap().current_index, 0,
+            "COUNTEREXAMPLE: current_index stays frozen at 0 — AdvanceProgressionChord action does not exist");
+    }
+
+    mod bug_condition_exploration {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// Bug condition exploration test — FAILS TO COMPILE on unfixed code.
+        /// AdvanceProgressionChord(usize) variant does not exist in AppAction yet.
+        /// Failure confirms: the action is missing, so highlighted_chord can never advance
+        /// programmatically during audio playback.
+        ///
+        /// EXPECTED OUTCOME on unfixed code: compile error
+        /// EXPECTED OUTCOME after fix (Task 3.5): test passes
+        proptest! {
+            #[test]
+            fn prop_advance_progression_chord_updates_highlight(
+                target_index in 1usize..4usize,
+            ) {
+                let id: ProgressionId = 0; // I–V–vi–IV in C major (4 chords)
+                let progression = crate::data::find_progression(id).unwrap();
+                prop_assume!(target_index < progression.chords.len());
+
+                let s0 = app_reducer(default_state(), AppAction::SelectProgression(id));
+                prop_assume!(s0.active_progression.is_some());
+
+                // AdvanceProgressionChord does not exist on unfixed code — compile error here
+                let s1 = app_reducer(s0, AppAction::AdvanceProgressionChord(target_index));
+
+                let expected = chord_highlight_at(&progression, target_index);
+                prop_assert_eq!(s1.highlighted_chord, expected,
+                    "highlighted_chord should match chord at index {} after AdvanceProgressionChord", target_index);
+                prop_assert_eq!(s1.active_progression.unwrap().current_index, target_index,
+                    "current_index should be {} after AdvanceProgressionChord", target_index);
+            }
+        }
+    }
+
     // ── MIDI reducer property tests (Task 2.1) ────────────────────────────
 
     mod property_tests {
