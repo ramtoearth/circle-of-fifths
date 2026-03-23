@@ -59,6 +59,7 @@ pub struct AppState {
     pub app_mode: AppMode,
     pub play_along_state: Option<PlayAlongState>,
     pub metronome_active: bool,
+    pub is_playing: bool,
 }
 
 impl Default for AppState {
@@ -84,6 +85,7 @@ impl Default for AppState {
             app_mode: AppMode::Normal,
             play_along_state: None,
             metronome_active: false,
+            is_playing: false,
         }
     }
 }
@@ -122,6 +124,7 @@ pub enum AppAction {
     /// in lockstep with audio playback. Carries (progression_id, target_index) so the reducer
     /// can reject stale callbacks after a progression switch or key change.
     AdvanceProgressionChord(ProgressionId, usize),
+    SetPlaying(bool),
 }
 
 // ─────────────────────────── Constants ───────────────────────────────────────
@@ -424,11 +427,9 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
         // ── Progression playback sync (piano-chord-highlight-sync fix) ────────
         AppAction::AdvanceProgressionChord(progression_id, target_index) => {
             if let Some(ref active) = state.active_progression {
-                // Guard 1: reject if the active progression has changed since the timer was scheduled
                 if active.id != progression_id {
                     return state;
                 }
-                // Guard 2: reject stale/duplicate dispatches (idempotency)
                 if active.current_index >= target_index {
                     return state;
                 }
@@ -444,8 +445,11 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
                     };
                 }
             }
-            state // no-op: no active progression
+            state
         }
+
+        // Feature: cancellable-playback
+        AppAction::SetPlaying(playing) => AppState { is_playing: playing, ..state },
     }
 }
 
@@ -1192,5 +1196,60 @@ mod tests {
                     "metronome_active should be unchanged after two ToggleMetronome dispatches");
             }
         }
+
+        // Feature: cancellable-playback, Property 2: Stop transitions is_playing to false
+        proptest! {
+            #[test]
+            fn prop_set_playing_false(initial in any::<bool>()) {
+                let s0 = AppState { is_playing: initial, ..AppState::default() };
+                let s1 = app_reducer(s0, AppAction::SetPlaying(false));
+                prop_assert!(!s1.is_playing);
+            }
+        }
+
+        // Feature: cancellable-playback, Property 3: SetPlaying round-trip
+        proptest! {
+            #[test]
+            fn prop_set_playing_round_trip(initial in any::<bool>()) {
+                let s0 = AppState { is_playing: initial, ..AppState::default() };
+                let s1 = app_reducer(s0.clone(), AppAction::SetPlaying(true));
+                let s2 = app_reducer(s1, AppAction::SetPlaying(false));
+                prop_assert!(!s2.is_playing);
+
+                let s3 = app_reducer(s0, AppAction::SetPlaying(false));
+                let s4 = app_reducer(s3, AppAction::SetPlaying(true));
+                prop_assert!(s4.is_playing);
+            }
+        }
+    }
+
+    // Feature: cancellable-playback — unit tests for SetPlaying (Task 1.1)
+    #[test]
+    fn set_playing_true_sets_flag() {
+        let s = app_reducer(AppState::default(), AppAction::SetPlaying(true));
+        assert!(s.is_playing);
+    }
+
+    #[test]
+    fn set_playing_false_clears_flag() {
+        let s0 = AppState { is_playing: true, ..AppState::default() };
+        let s1 = app_reducer(s0, AppAction::SetPlaying(false));
+        assert!(!s1.is_playing);
+    }
+
+    #[test]
+    fn set_playing_does_not_mutate_other_fields() {
+        let s0 = AppState {
+            bpm: 90,
+            muted: true,
+            show_note_labels: true,
+            ..AppState::default()
+        };
+        let s1 = app_reducer(s0.clone(), AppAction::SetPlaying(true));
+        assert_eq!(s1.bpm, s0.bpm);
+        assert_eq!(s1.muted, s0.muted);
+        assert_eq!(s1.show_note_labels, s0.show_note_labels);
+        assert_eq!(s1.selected_key, s0.selected_key);
+        assert_eq!(s1.octave_offset, s0.octave_offset);
     }
 }
