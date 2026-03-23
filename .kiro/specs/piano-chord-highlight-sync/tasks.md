@@ -100,12 +100,18 @@
       distinct progression IDs. All guards verified: no-active, key-change clears state,
       stale-index rejected, stale-id rejected by id-match guard. 126 tests pass.
 
-  - [ ] 3.4 Write integration tests for full playback simulation (depends on 3.1 + 3.2)
+  - [x] 3.4 Write integration tests for full playback simulation (depends on 3.1 + 3.2)
     - Full playback simulation: dispatch `SelectProgression(id)`, then sequentially dispatch `AdvanceProgressionChord(1)`, `AdvanceProgressionChord(2)`, … up to `len-1`; assert `highlighted_chord` matches each chord in order
     - Interruption test: dispatch `SelectProgression(id)`, dispatch `NextChord` (manual navigation), then dispatch `AdvanceProgressionChord(1)`; assert the stale timer dispatch is a no-op (manual navigation already advanced the index)
     - Key change during playback: dispatch `SelectProgression(id)`, then `SelectKey(k)`, then `AdvanceProgressionChord(1)`; assert `highlighted_chord` is `None`
     - Single-chord progression: dispatch `SelectProgression` for a 1-chord progression; assert no `AdvanceProgressionChord` is needed and `highlighted_chord` is correct at index 0 throughout
     - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4_
+    - **COMPLETED**: Added `mod integration_tests` in `state::tests` with 4 tests:
+      `full_playback_simulation_highlights_each_chord_in_order`,
+      `manual_next_chord_takes_precedence_over_stale_timer`,
+      `key_change_during_playback_ignores_stale_timer`,
+      `single_chord_progression_highlight_correct_without_advance`.
+      All 130 tests pass.
 
   - [ ] 3.5 Verify bug condition exploration test now passes (depends on 3.1 + 3.2)
     - **Property 1: Expected Behavior** - Highlighted Chord Tracks Active Progression Index

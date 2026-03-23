@@ -945,6 +945,112 @@ mod tests {
         }
     }
 
+    // ── Task 3.4: Integration tests for full playback simulation ─────────
+    // Feature: piano-chord-highlight-sync
+    // Validates end-to-end: SelectProgression + sequential AdvanceProgressionChord dispatches
+    // produce the correct highlighted_chord at each step, and that stale timers are no-ops.
+
+    mod integration_tests {
+        use super::*;
+
+        const ID: ProgressionId = 0;  // I–V–vi–IV in C major (4 chords)
+
+        /// Full playback simulation: simulate timer callbacks dispatching
+        /// AdvanceProgressionChord(1..len-1) in sequence and assert highlighted_chord
+        /// tracks each chord in order.
+        #[test]
+        fn full_playback_simulation_highlights_each_chord_in_order() {
+            let progression = crate::data::find_progression(ID).unwrap();
+            let len = progression.chords.len();
+            assert!(len > 1, "progression {ID} must have >1 chord");
+
+            let mut s = app_reducer(default_state(), AppAction::SelectProgression(ID));
+            assert!(s.active_progression.is_some());
+
+            // Initial state: index 0 highlight is correct
+            assert_eq!(s.highlighted_chord, chord_highlight_at(&progression, 0),
+                "highlighted_chord should equal chord at index 0 after SelectProgression");
+            assert_eq!(s.active_progression.as_ref().unwrap().current_index, 0);
+
+            // Simulate each timer callback advancing the chord
+            for i in 1..len {
+                s = app_reducer(s, AppAction::AdvanceProgressionChord(ID, i));
+                let expected = chord_highlight_at(&progression, i);
+                assert_eq!(s.highlighted_chord, expected,
+                    "highlighted_chord should match chord at index {i}");
+                assert_eq!(s.active_progression.as_ref().unwrap().current_index, i,
+                    "current_index should be {i}");
+            }
+        }
+
+        /// Interruption test: user clicks ▶ (NextChord) before a timer fires.
+        /// The stale timer dispatches AdvanceProgressionChord(1), but current_index
+        /// is already 1, so the guard rejects it as a no-op.
+        #[test]
+        fn manual_next_chord_takes_precedence_over_stale_timer() {
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID));
+            assert!(s0.active_progression.is_some());
+
+            // User manually clicks ▶ — advances to index 1
+            let s1 = app_reducer(s0, AppAction::NextChord);
+            assert_eq!(s1.active_progression.as_ref().unwrap().current_index, 1);
+            let highlight_at_1 = s1.highlighted_chord.clone();
+
+            // Stale timer fires with AdvanceProgressionChord(1) — already at 1, must be no-op
+            let s2 = app_reducer(s1, AppAction::AdvanceProgressionChord(ID, 1));
+            assert_eq!(s2.active_progression.as_ref().unwrap().current_index, 1,
+                "current_index must remain 1 — stale timer must not change state");
+            assert_eq!(s2.highlighted_chord, highlight_at_1,
+                "highlighted_chord must be unchanged — stale timer is a no-op");
+        }
+
+        /// Key change during playback: SelectKey clears active_progression;
+        /// subsequent stale timer dispatch must be a complete no-op.
+        #[test]
+        fn key_change_during_playback_ignores_stale_timer() {
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID));
+            assert!(s0.active_progression.is_some());
+
+            // User selects a different key while audio is still playing
+            let new_key = Key { root: PitchClass::G, mode: Mode::Major };
+            let s1 = app_reducer(s0, AppAction::SelectKey(new_key));
+            assert_eq!(s1.active_progression, None);
+            assert_eq!(s1.highlighted_chord, None);
+
+            // Stale timer fires — must be a complete no-op
+            let s2 = app_reducer(s1, AppAction::AdvanceProgressionChord(ID, 1));
+            assert_eq!(s2.active_progression, None,
+                "active_progression must remain None after key change");
+            assert_eq!(s2.highlighted_chord, None,
+                "highlighted_chord must remain None after key change");
+        }
+
+        /// Single-chord progression edge case: highlighted_chord is correct at index 0
+        /// immediately after SelectProgression, with no AdvanceProgressionChord needed.
+        /// Also verifies that AdvanceProgressionChord(id, 0) is always a no-op
+        /// (idempotency guard fires: current_index 0 >= target 0).
+        #[test]
+        fn single_chord_progression_highlight_correct_without_advance() {
+            let progression = crate::data::find_progression(ID).unwrap();
+
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID));
+            assert!(s0.active_progression.is_some());
+
+            // Highlight is correct at index 0 — no AdvanceProgressionChord needed
+            let expected_0 = chord_highlight_at(&progression, 0);
+            assert_eq!(s0.highlighted_chord, expected_0,
+                "highlighted_chord should be correct at index 0 without any advance dispatch");
+            assert_eq!(s0.active_progression.as_ref().unwrap().current_index, 0);
+
+            // AdvanceProgressionChord(id, 0) must be a no-op: index guard (0 >= 0) fires
+            let s1 = app_reducer(s0.clone(), AppAction::AdvanceProgressionChord(ID, 0));
+            assert_eq!(s1.highlighted_chord, s0.highlighted_chord,
+                "AdvanceProgressionChord(id, 0) must be a no-op when current_index is already 0");
+            assert_eq!(s1.active_progression, s0.active_progression,
+                "active_progression must be unchanged");
+        }
+    }
+
     // ── MIDI reducer property tests (Task 2.1) ────────────────────────────
 
     mod property_tests {
