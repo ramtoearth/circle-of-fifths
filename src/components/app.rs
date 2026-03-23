@@ -357,6 +357,19 @@ pub fn app() -> Html {
         Callback::from(move |_: ()| state.dispatch(AppAction::ClearRollingWindow))
     };
 
+    let on_stop = {
+        let animation_handles = animation_handles.clone();
+        let audio = audio.clone();
+        let playing_note = playing_note.clone();
+        let state = state.clone();
+        Callback::from(move |_: MouseEvent| {
+            animation_handles.borrow_mut().clear();
+            audio.stop();
+            playing_note.set(None);
+            state.dispatch(AppAction::SetPlaying(false));
+        })
+    };
+
     // ── Derived: practice_target for PianoPanel ───────────────────────────────
     let practice_target: Option<Vec<crate::music_theory::PitchClass>> =
         if let Some(ref pa) = state.play_along_state {
@@ -449,6 +462,9 @@ pub fn app() -> Html {
             }
 
             <div class="piano-footer">
+                if state.is_playing {
+                    <button class="stop-btn" onclick={on_stop} aria-label="Stop playback">{"■ Stop"}</button>
+                }
                 <PianoPanel
                     selected_key={state.selected_key}
                     highlighted_chord={state.highlighted_chord.clone()}

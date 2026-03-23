@@ -64,7 +64,7 @@ in `AppState` drives Stop button visibility.
 - [x] 5. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Add Stop button to the render output
+- [x] 6. Add Stop button to the render output
   - In the render section of `src/components/app.rs`, add an `on_stop` callback that calls
     `cancel_active_session()`
   - Inside the `piano-footer` `<div>`, above `<PianoPanel>`, render the Stop button
