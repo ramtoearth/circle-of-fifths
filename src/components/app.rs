@@ -175,6 +175,16 @@ pub fn app() -> Html {
         Callback::from(move |id: ProgressionId| {
             if let Some(ref p) = crate::data::find_progression(id) {
                 audio.play_progression(p);
+                // Schedule one Timeout per chord (indices 1..len) to advance the piano
+                // highlight in lockstep with the audio timeline (1 chord per second).
+                // Each closure captures its own state clone so dispatches are independent.
+                // The reducer's id-match and index guards make stale dispatches no-ops.
+                for i in 1..p.chords.len() {
+                    let state = state.clone();
+                    Timeout::new(i as u32 * 1000, move || {
+                        state.dispatch(AppAction::AdvanceProgressionChord(id, i));
+                    }).forget();
+                }
             }
             state.dispatch(AppAction::SelectProgression(id));
         })

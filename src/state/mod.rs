@@ -118,6 +118,10 @@ pub enum AppAction {
     PlayAlongTick,
     RecordPlayAlongChordResult(crate::midi::ChordResult),
     ToggleMetronome,
+    /// Dispatched by a timer callback in `on_progression_click` to advance the piano highlight
+    /// in lockstep with audio playback. Carries (progression_id, target_index) so the reducer
+    /// can reject stale callbacks after a progression switch or key change.
+    AdvanceProgressionChord(ProgressionId, usize),
 }
 
 // ─────────────────────────── Constants ───────────────────────────────────────
@@ -416,6 +420,32 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             metronome_active: !state.metronome_active,
             ..state
         },
+
+        // ── Progression playback sync (piano-chord-highlight-sync fix) ────────
+        AppAction::AdvanceProgressionChord(progression_id, target_index) => {
+            if let Some(ref active) = state.active_progression {
+                // Guard 1: reject if the active progression has changed since the timer was scheduled
+                if active.id != progression_id {
+                    return state;
+                }
+                // Guard 2: reject stale/duplicate dispatches (idempotency)
+                if active.current_index >= target_index {
+                    return state;
+                }
+                if let Some(progression) = crate::data::find_progression(progression_id) {
+                    let highlighted_chord = chord_highlight_at(&progression, target_index);
+                    return AppState {
+                        active_progression: Some(ActiveProgression {
+                            id: active.id,
+                            current_index: target_index,
+                        }),
+                        highlighted_chord,
+                        ..state
+                    };
+                }
+            }
+            state // no-op: no active progression
+        }
     }
 }
 
@@ -587,6 +617,438 @@ mod tests {
         let orig_idx = s0.active_progression.unwrap().current_index;
         let final_idx = s.active_progression.unwrap().current_index;
         assert_eq!(final_idx, orig_idx);
+    }
+
+    // ── Task 1: Bug condition exploration tests ───────────────────────────
+    // Feature: piano-chord-highlight-sync
+    // Bug Condition: highlighted_chord does not advance after SelectProgression
+
+    /// Deterministic "frozen highlight" test — documents the bug by absence of advancement.
+    /// PASSES on unfixed code: confirms that after SelectProgression, highlighted_chord is
+    /// stuck at index 0 with no mechanism to advance it further.
+    /// COUNTEREXAMPLE: current_index stays 0 indefinitely — no AdvanceProgressionChord action exists.
+    #[test]
+    fn frozen_highlight_documents_the_bug() {
+        let id: ProgressionId = 0; // I–V–vi–IV in C major (4 chords)
+        let s0 = app_reducer(default_state(), AppAction::SelectProgression(id));
+        assert!(s0.active_progression.is_some(), "progression should be active after SelectProgression");
+
+        let progression = crate::data::find_progression(id).unwrap();
+        assert!(progression.chords.len() > 1, "progression 0 must have more than 1 chord for this test to be meaningful");
+
+        let expected_chord_0 = chord_highlight_at(&progression, 0);
+        assert_eq!(s0.highlighted_chord, expected_chord_0,
+            "highlighted_chord should equal chord at index 0 immediately after SelectProgression");
+        assert_eq!(s0.active_progression.as_ref().unwrap().current_index, 0,
+            "current_index should be 0 after SelectProgression");
+
+        // No further actions are dispatched — simulating that audio plays but state never advances.
+        // COUNTEREXAMPLE: highlighted_chord is still index 0 even though audio would be on chord 1+.
+        // This documents the freeze: the highlighted_chord has no way to advance during playback.
+        assert_eq!(s0.active_progression.unwrap().current_index, 0,
+            "COUNTEREXAMPLE: current_index stays frozen at 0 — AdvanceProgressionChord action does not exist");
+    }
+
+    mod bug_condition_exploration {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// Bug condition exploration test — Task 3.5: re-enabled after fix.
+        /// Task 1 documented the compile error; now AdvanceProgressionChord(ProgressionId, usize)
+        /// exists and the test validates the fix (Property 1: Bug Condition).
+        proptest! {
+            #[test]
+            fn prop_advance_progression_chord_updates_highlight(
+                target_index in 1usize..4usize,
+            ) {
+                let id: ProgressionId = 0; // I–V–vi–IV in C major (4 chords)
+                let progression = crate::data::find_progression(id).unwrap();
+                prop_assume!(target_index < progression.chords.len());
+
+                let s0 = app_reducer(default_state(), AppAction::SelectProgression(id));
+                prop_assume!(s0.active_progression.is_some());
+
+                let s1 = app_reducer(s0, AppAction::AdvanceProgressionChord(id, target_index));
+
+                let expected = chord_highlight_at(&progression, target_index);
+                prop_assert_eq!(s1.highlighted_chord, expected,
+                    "highlighted_chord should match chord at index {} after AdvanceProgressionChord", target_index);
+                prop_assert_eq!(s1.active_progression.unwrap().current_index, target_index,
+                    "current_index should be {} after AdvanceProgressionChord", target_index);
+            }
+        }
+    }
+
+    // ── Task 2: Preservation property tests ──────────────────────────────
+    // Feature: piano-chord-highlight-sync
+    // Property 2: Non-playback behaviors are unchanged by the fix
+    // EXPECTED OUTCOME on unfixed code: ALL PASS (establishes baseline to preserve)
+
+    mod preservation {
+        use super::*;
+        use proptest::prelude::*;
+
+        // ── Deterministic observation tests ──────────────────────────────────
+
+        /// Observe on unfixed code: SelectProgression(0) → NextChord → highlighted_chord equals chord at index 1
+        #[test]
+        fn next_chord_advances_highlight_from_index_zero() {
+            let id: ProgressionId = 0;
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(id));
+            if s0.active_progression.is_none() { return; }
+            let progression = crate::data::find_progression(id).unwrap();
+            if progression.chords.len() < 2 { return; }
+
+            let s1 = app_reducer(s0, AppAction::NextChord);
+            let expected = chord_highlight_at(&progression, 1);
+            assert_eq!(s1.highlighted_chord, expected,
+                "NextChord from index 0 should set highlighted_chord to chord at index 1");
+            assert_eq!(s1.active_progression.unwrap().current_index, 1);
+        }
+
+        /// Observe on unfixed code: SelectProgression(0) → PrevChord → highlighted_chord equals chord at last index
+        #[test]
+        fn prev_chord_wraps_to_last_from_index_zero() {
+            let id: ProgressionId = 0;
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(id));
+            if s0.active_progression.is_none() { return; }
+            let progression = crate::data::find_progression(id).unwrap();
+            let last_idx = progression.chords.len() - 1;
+
+            let s1 = app_reducer(s0, AppAction::PrevChord);
+            let expected = chord_highlight_at(&progression, last_idx);
+            assert_eq!(s1.highlighted_chord, expected,
+                "PrevChord from index 0 should set highlighted_chord to last chord");
+            assert_eq!(s1.active_progression.unwrap().current_index, last_idx);
+        }
+
+        /// Observe on unfixed code: SelectChord(c) → highlighted_chord equals c, active_progression is None
+        #[test]
+        fn select_chord_sets_highlighted_and_clears_progression() {
+            let chords = crate::music_theory::diatonic_chords(c_major());
+            for chord in &chords {
+                let s0 = app_reducer(default_state(), AppAction::SelectProgression(0));
+                let s1 = app_reducer(s0, AppAction::SelectChord(chord.clone()));
+                assert_eq!(s1.active_progression, None,
+                    "SelectChord should clear active_progression");
+                let hl = s1.highlighted_chord.unwrap();
+                assert_eq!(hl.root, chord.notes[0]);
+                assert_eq!(hl.third, chord.notes[1]);
+                assert_eq!(hl.fifth, chord.notes[2]);
+            }
+        }
+
+        /// Observe on unfixed code: SelectKey(k) → active_progression is None, highlighted_chord is None
+        #[test]
+        fn select_key_clears_progression_and_highlight() {
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(0));
+            if s0.active_progression.is_none() { return; }
+
+            let new_key = Key { root: PitchClass::G, mode: Mode::Major };
+            let s1 = app_reducer(s0, AppAction::SelectKey(new_key));
+            assert_eq!(s1.active_progression, None,
+                "SelectKey should clear active_progression");
+            assert_eq!(s1.highlighted_chord, None,
+                "SelectKey should clear highlighted_chord");
+        }
+
+        // ── Property-based tests ──────────────────────────────────────────────
+
+        /// For any start index in [0, len-1], NextChord advances current_index by 1 (mod len)
+        /// and sets highlighted_chord to the chord at the new index.
+        proptest! {
+            #[test]
+            fn prop_next_chord_preserves_correct_highlight(
+                start_index in 0usize..3usize,
+            ) {
+                let id: ProgressionId = 0; // I–V–vi–IV in C major (4 chords)
+                let progression = crate::data::find_progression(id).unwrap();
+                let len = progression.chords.len();
+                prop_assume!(start_index < len);
+
+                // Navigate to start_index via repeated NextChord
+                let mut s = app_reducer(default_state(), AppAction::SelectProgression(id));
+                prop_assume!(s.active_progression.is_some());
+                for _ in 0..start_index {
+                    s = app_reducer(s, AppAction::NextChord);
+                }
+                prop_assume!(s.active_progression.as_ref().unwrap().current_index == start_index);
+
+                let s_after = app_reducer(s, AppAction::NextChord);
+                let expected_index = (start_index + 1) % len;
+                let expected_chord = chord_highlight_at(&progression, expected_index);
+                prop_assert_eq!(s_after.highlighted_chord, expected_chord,
+                    "NextChord from index {} should set highlighted_chord to chord at {}",
+                    start_index, expected_index);
+                prop_assert_eq!(s_after.active_progression.unwrap().current_index, expected_index);
+            }
+        }
+
+        /// For any start index in [1, len-1], PrevChord decrements current_index by 1
+        /// and sets highlighted_chord to the chord at the new index.
+        proptest! {
+            #[test]
+            fn prop_prev_chord_preserves_correct_highlight(
+                start_index in 1usize..4usize,
+            ) {
+                let id: ProgressionId = 0; // I–V–vi–IV in C major (4 chords)
+                let progression = crate::data::find_progression(id).unwrap();
+                let len = progression.chords.len();
+                prop_assume!(start_index < len);
+
+                // Navigate to start_index via repeated NextChord
+                let mut s = app_reducer(default_state(), AppAction::SelectProgression(id));
+                prop_assume!(s.active_progression.is_some());
+                for _ in 0..start_index {
+                    s = app_reducer(s, AppAction::NextChord);
+                }
+                prop_assume!(s.active_progression.as_ref().unwrap().current_index == start_index);
+
+                let s_after = app_reducer(s, AppAction::PrevChord);
+                let expected_index = start_index - 1;
+                let expected_chord = chord_highlight_at(&progression, expected_index);
+                prop_assert_eq!(s_after.highlighted_chord, expected_chord,
+                    "PrevChord from index {} should set highlighted_chord to chord at {}",
+                    start_index, expected_index);
+                prop_assert_eq!(s_after.active_progression.unwrap().current_index, expected_index);
+            }
+        }
+
+        /// For any diatonic chord, SelectChord sets highlighted_chord and clears active_progression.
+        proptest! {
+            #[test]
+            fn prop_select_chord_clears_active_progression(
+                degree_idx in 0usize..7usize,
+            ) {
+                let chords = crate::music_theory::diatonic_chords(c_major());
+                let chord = chords[degree_idx].clone();
+
+                // Start with an active progression to ensure it gets cleared
+                let s0 = app_reducer(default_state(), AppAction::SelectProgression(0));
+                let s1 = app_reducer(s0, AppAction::SelectChord(chord.clone()));
+                prop_assert_eq!(s1.active_progression, None,
+                    "SelectChord should clear active_progression");
+                let hl = s1.highlighted_chord.unwrap();
+                prop_assert_eq!(hl.root, chord.notes[0]);
+                prop_assert_eq!(hl.third, chord.notes[1]);
+                prop_assert_eq!(hl.fifth, chord.notes[2]);
+            }
+        }
+
+        /// For any key, SelectKey clears active_progression and highlighted_chord.
+        proptest! {
+            #[test]
+            fn prop_select_key_clears_progression_and_highlight(
+                root_idx in 0u8..12u8,
+            ) {
+                let key = Key { root: PitchClass::from_index(root_idx), mode: Mode::Major };
+
+                // Start with an active progression to ensure SelectKey clears it
+                let s0 = app_reducer(default_state(), AppAction::SelectProgression(0));
+                prop_assume!(s0.active_progression.is_some());
+
+                let s1 = app_reducer(s0, AppAction::SelectKey(key));
+                prop_assert_eq!(s1.active_progression, None,
+                    "SelectKey should clear active_progression");
+                prop_assert_eq!(s1.highlighted_chord, None,
+                    "SelectKey should clear highlighted_chord");
+            }
+        }
+    }
+
+    // ── Task 3.3: Unit tests for AdvanceProgressionChord reducer arm ──────
+
+    mod advance_progression_chord_tests {
+        use super::*;
+
+        // ID 0 = I–V–vi–IV in C major (4 chords); guaranteed multi-chord.
+        const ID_A: ProgressionId = 0;
+        // ID 5 = I–V–vi–IV in G major (4 chords); used as a distinct second progression.
+        const ID_B: ProgressionId = 5;
+
+        #[test]
+        fn advance_progression_chord_updates_highlight() {
+            let progression = crate::data::find_progression(ID_A).unwrap();
+            let len = progression.chords.len();
+            assert!(len > 1, "progression {ID_A} must have >1 chord");
+
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID_A));
+            assert!(s0.active_progression.is_some());
+
+            for i in 1..len {
+                let si = app_reducer(s0.clone(), AppAction::AdvanceProgressionChord(ID_A, i));
+                let expected = chord_highlight_at(&progression, i);
+                assert_eq!(si.highlighted_chord, expected,
+                    "highlighted_chord should match chord at index {i}");
+                assert_eq!(si.active_progression.unwrap().current_index, i,
+                    "current_index should be {i} after AdvanceProgressionChord({i})");
+            }
+        }
+
+        #[test]
+        fn advance_progression_chord_noop_when_no_active() {
+            let s0 = default_state();
+            let s1 = app_reducer(s0.clone(), AppAction::AdvanceProgressionChord(ID_A, 1));
+            assert_eq!(s1.active_progression, s0.active_progression);
+            assert_eq!(s1.highlighted_chord, s0.highlighted_chord);
+        }
+
+        #[test]
+        fn advance_progression_chord_noop_after_key_change() {
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID_A));
+            assert!(s0.active_progression.is_some());
+
+            let new_key = Key { root: PitchClass::G, mode: Mode::Major };
+            let s1 = app_reducer(s0, AppAction::SelectKey(new_key));
+            assert_eq!(s1.active_progression, None);
+
+            let s2 = app_reducer(s1, AppAction::AdvanceProgressionChord(ID_A, 1));
+            assert_eq!(s2.highlighted_chord, None,
+                "highlighted_chord should remain None after key change clears progression");
+            assert_eq!(s2.active_progression, None,
+                "active_progression should remain None after key change");
+        }
+
+        #[test]
+        fn advance_progression_chord_noop_for_stale_index() {
+            let progression = crate::data::find_progression(ID_A).unwrap();
+            assert!(progression.chords.len() > 2, "progression {ID_A} must have >2 chords");
+
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID_A));
+            let s1 = app_reducer(s0, AppAction::AdvanceProgressionChord(ID_A, 2));
+            assert_eq!(s1.active_progression.as_ref().unwrap().current_index, 2);
+
+            // Dispatching index 1 after index 2 has already been applied must be a no-op
+            let s2 = app_reducer(s1.clone(), AppAction::AdvanceProgressionChord(ID_A, 1));
+            assert_eq!(s2.active_progression.as_ref().unwrap().current_index, 2,
+                "current_index should stay at 2 — stale index 1 must be rejected");
+            assert_eq!(s2.highlighted_chord, s1.highlighted_chord,
+                "highlighted_chord should be unchanged after stale dispatch");
+        }
+
+        #[test]
+        fn advance_progression_chord_noop_after_progression_switch() {
+            // Simulate: timer for progression A fires after user switched to B.
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID_A));
+            let s1 = app_reducer(s0, AppAction::SelectProgression(ID_B));
+            assert_eq!(s1.active_progression.as_ref().unwrap().id, ID_B);
+            assert_eq!(s1.active_progression.as_ref().unwrap().current_index, 0);
+
+            // Stale timer from A dispatches AdvanceProgressionChord with A's id — must be no-op
+            let s2 = app_reducer(s1.clone(), AppAction::AdvanceProgressionChord(ID_A, 1));
+            assert_eq!(s2.active_progression.as_ref().unwrap().id, ID_B,
+                "active progression should still be B after stale timer from A");
+            assert_eq!(s2.active_progression.as_ref().unwrap().current_index, 0,
+                "current_index should remain 0 — stale A timer must be rejected by id guard");
+            assert_eq!(s2.highlighted_chord, s1.highlighted_chord,
+                "highlighted_chord should be unchanged after stale A dispatch");
+        }
+    }
+
+    // ── Task 3.4: Integration tests for full playback simulation ─────────
+    // Feature: piano-chord-highlight-sync
+    // Validates end-to-end: SelectProgression + sequential AdvanceProgressionChord dispatches
+    // produce the correct highlighted_chord at each step, and that stale timers are no-ops.
+
+    mod integration_tests {
+        use super::*;
+
+        const ID: ProgressionId = 0;  // I–V–vi–IV in C major (4 chords)
+
+        /// Full playback simulation: simulate timer callbacks dispatching
+        /// AdvanceProgressionChord(1..len-1) in sequence and assert highlighted_chord
+        /// tracks each chord in order.
+        #[test]
+        fn full_playback_simulation_highlights_each_chord_in_order() {
+            let progression = crate::data::find_progression(ID).unwrap();
+            let len = progression.chords.len();
+            assert!(len > 1, "progression {ID} must have >1 chord");
+
+            let mut s = app_reducer(default_state(), AppAction::SelectProgression(ID));
+            assert!(s.active_progression.is_some());
+
+            // Initial state: index 0 highlight is correct
+            assert_eq!(s.highlighted_chord, chord_highlight_at(&progression, 0),
+                "highlighted_chord should equal chord at index 0 after SelectProgression");
+            assert_eq!(s.active_progression.as_ref().unwrap().current_index, 0);
+
+            // Simulate each timer callback advancing the chord
+            for i in 1..len {
+                s = app_reducer(s, AppAction::AdvanceProgressionChord(ID, i));
+                let expected = chord_highlight_at(&progression, i);
+                assert_eq!(s.highlighted_chord, expected,
+                    "highlighted_chord should match chord at index {i}");
+                assert_eq!(s.active_progression.as_ref().unwrap().current_index, i,
+                    "current_index should be {i}");
+            }
+        }
+
+        /// Interruption test: user clicks ▶ (NextChord) before a timer fires.
+        /// The stale timer dispatches AdvanceProgressionChord(1), but current_index
+        /// is already 1, so the guard rejects it as a no-op.
+        #[test]
+        fn manual_next_chord_takes_precedence_over_stale_timer() {
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID));
+            assert!(s0.active_progression.is_some());
+
+            // User manually clicks ▶ — advances to index 1
+            let s1 = app_reducer(s0, AppAction::NextChord);
+            assert_eq!(s1.active_progression.as_ref().unwrap().current_index, 1);
+            let highlight_at_1 = s1.highlighted_chord.clone();
+
+            // Stale timer fires with AdvanceProgressionChord(1) — already at 1, must be no-op
+            let s2 = app_reducer(s1, AppAction::AdvanceProgressionChord(ID, 1));
+            assert_eq!(s2.active_progression.as_ref().unwrap().current_index, 1,
+                "current_index must remain 1 — stale timer must not change state");
+            assert_eq!(s2.highlighted_chord, highlight_at_1,
+                "highlighted_chord must be unchanged — stale timer is a no-op");
+        }
+
+        /// Key change during playback: SelectKey clears active_progression;
+        /// subsequent stale timer dispatch must be a complete no-op.
+        #[test]
+        fn key_change_during_playback_ignores_stale_timer() {
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID));
+            assert!(s0.active_progression.is_some());
+
+            // User selects a different key while audio is still playing
+            let new_key = Key { root: PitchClass::G, mode: Mode::Major };
+            let s1 = app_reducer(s0, AppAction::SelectKey(new_key));
+            assert_eq!(s1.active_progression, None);
+            assert_eq!(s1.highlighted_chord, None);
+
+            // Stale timer fires — must be a complete no-op
+            let s2 = app_reducer(s1, AppAction::AdvanceProgressionChord(ID, 1));
+            assert_eq!(s2.active_progression, None,
+                "active_progression must remain None after key change");
+            assert_eq!(s2.highlighted_chord, None,
+                "highlighted_chord must remain None after key change");
+        }
+
+        /// Single-chord progression edge case: highlighted_chord is correct at index 0
+        /// immediately after SelectProgression, with no AdvanceProgressionChord needed.
+        /// Also verifies that AdvanceProgressionChord(id, 0) is always a no-op
+        /// (idempotency guard fires: current_index 0 >= target 0).
+        #[test]
+        fn single_chord_progression_highlight_correct_without_advance() {
+            let progression = crate::data::find_progression(ID).unwrap();
+
+            let s0 = app_reducer(default_state(), AppAction::SelectProgression(ID));
+            assert!(s0.active_progression.is_some());
+
+            // Highlight is correct at index 0 — no AdvanceProgressionChord needed
+            let expected_0 = chord_highlight_at(&progression, 0);
+            assert_eq!(s0.highlighted_chord, expected_0,
+                "highlighted_chord should be correct at index 0 without any advance dispatch");
+            assert_eq!(s0.active_progression.as_ref().unwrap().current_index, 0);
+
+            // AdvanceProgressionChord(id, 0) must be a no-op: index guard (0 >= 0) fires
+            let s1 = app_reducer(s0.clone(), AppAction::AdvanceProgressionChord(ID, 0));
+            assert_eq!(s1.highlighted_chord, s0.highlighted_chord,
+                "AdvanceProgressionChord(id, 0) must be a no-op when current_index is already 0");
+            assert_eq!(s1.active_progression, s0.active_progression,
+                "active_progression must be unchanged");
+        }
     }
 
     // ── MIDI reducer property tests (Task 2.1) ────────────────────────────
