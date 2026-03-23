@@ -81,19 +81,10 @@ in `AppState` drives Stop button visibility.
   - Ensure keyboard focus styles are present (`:focus-visible` outline)
   - _Requirements: 1.1, 1.3_
 
-- [ ] 8. Write property tests for Idle State correctness
-  - [ ]* 8.1 Write property test for Property 4: Idle State key highlight correctness
-    - **Property 4: Idle State key highlight correctness**
-    - **Validates: Requirements 7.1, 7.3**
-
-  - [ ]* 8.2 Write property test for Property 5: Idle State chord highlight correctness
-    - **Property 5: Idle State chord highlight correctness**
-    - **Validates: Requirements 7.2**
-
-  - [ ]* 8.3 Write property test for Property 6: Animation handle collection is empty after clear
-    - **Property 6: Animation handle collection is empty after clear**
-    - Use `Vec<u32>` as a structural stand-in for `Vec<Timeout>` (Timeout cannot be constructed outside WASM)
-    - **Validates: Requirements 5.2, 5.4**
+- [x] 8. Write property tests for Idle State correctness
+  - [x]* 8.1 Write property test for Property 4: Idle State key highlight correctness
+  - [x]* 8.2 Write property test for Property 5: Idle State chord highlight correctness
+  - [x]* 8.3 Write property test for Property 6: Animation handle collection is empty after clear
 
 - [ ] 9. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
