@@ -113,13 +113,15 @@
       `single_chord_progression_highlight_correct_without_advance`.
       All 130 tests pass.
 
-  - [ ] 3.5 Verify bug condition exploration test now passes (depends on 3.1 + 3.2)
+  - [x] 3.5 Verify bug condition exploration test now passes (depends on 3.1 + 3.2)
     - **Property 1: Expected Behavior** - Highlighted Chord Tracks Active Progression Index
     - **IMPORTANT**: Re-run the SAME test from task 1 — do NOT write a new test
     - The test from task 1 encodes the expected behavior; when it passes, the fix is confirmed
     - Run bug condition exploration test from step 1
     - **EXPECTED OUTCOME**: Test PASSES (confirms bug is fixed)
     - _Requirements: 2.1, 2.2, 2.3_
+    - **COMPLETED**: `cargo test prop_advance_progression_chord_updates_highlight` → 1 passed.
+      Task 1 test (re-enabled in 3.1) passes — bug is fixed. All 130 tests pass.
 
   - [x] 3.6 Verify preservation tests still pass (depends on 3.1 + 3.2)
     - **Property 2: Preservation** - Non-Playback Behaviors Unchanged
