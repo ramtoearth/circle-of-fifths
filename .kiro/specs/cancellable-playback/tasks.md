@@ -61,7 +61,7 @@ in `AppState` drives Stop button visibility.
   - When the same progression is already active, only call `cancel_active_session()` — do not restart
   - _Requirements: 4.1, 4.2, 4.3, 5.3, 5.4_
 
-- [ ] 5. Checkpoint — Ensure all tests pass
+- [x] 5. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 6. Add Stop button to the render output
