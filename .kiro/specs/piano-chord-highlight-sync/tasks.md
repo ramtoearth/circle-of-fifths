@@ -33,7 +33,7 @@
     **Counterexamples**: (1) `AdvanceProgressionChord` variant does not exist in `AppAction`;
     (2) after `SelectProgression(0)`, `highlighted_chord` stays frozen at index 0 indefinitely.
 
-- [ ] 2. Write preservation property tests (BEFORE implementing fix)
+- [x] 2. Write preservation property tests (BEFORE implementing fix)
   - **Property 2: Preservation** - Non-Playback Behaviors Unchanged
   - **IMPORTANT**: Follow observation-first methodology — run UNFIXED code with non-buggy inputs first
   - **Observe on unfixed code**:
