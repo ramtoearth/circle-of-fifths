@@ -10,6 +10,8 @@ const KEY_MUTED: &str = "cof_muted";
 const KEY_FAVORITES: &str = "cof_favorites";
 #[allow(dead_code)]
 const KEY_METRONOME_ACTIVE: &str = "cof_metronome_active";
+#[allow(dead_code)]
+const KEY_AUTO_PLAYBACK: &str = "cof_auto_playback";
 
 /// The subset of `AppState` that is persisted to localStorage.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -18,6 +20,7 @@ pub struct PersistedState {
     pub muted: bool,
     pub favorites: Vec<ProgressionId>,
     pub metronome_active: bool,
+    pub auto_playback_enabled: bool,
 }
 
 impl Default for PersistedState {
@@ -27,6 +30,7 @@ impl Default for PersistedState {
             muted: false,
             favorites: Vec::new(),
             metronome_active: false,
+            auto_playback_enabled: true,
         }
     }
 }
@@ -71,6 +75,15 @@ pub fn deserialize_metronome_active(s: &str) -> bool {
     s == "true"
 }
 
+pub fn serialize_auto_playback(enabled: bool) -> String {
+    if enabled { "true".to_string() } else { "false".to_string() }
+}
+
+pub fn deserialize_auto_playback(s: &str) -> bool {
+    // Defaults to true on any unrecognised value (Requirement 6.4)
+    s != "false"
+}
+
 // --- localStorage I/O (WASM only) ---
 
 #[cfg(target_arch = "wasm32")]
@@ -106,7 +119,10 @@ pub fn load_state() -> PersistedState {
         let metronome_active = ls_get(KEY_METRONOME_ACTIVE)
             .map(|s| deserialize_metronome_active(&s))
             .unwrap_or(false);
-        PersistedState { theme, muted, favorites, metronome_active }
+        let auto_playback_enabled = ls_get(KEY_AUTO_PLAYBACK)
+            .map(|s| deserialize_auto_playback(&s))
+            .unwrap_or(true);
+        PersistedState { theme, muted, favorites, metronome_active, auto_playback_enabled }
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -122,6 +138,7 @@ pub fn save_state(state: &AppState) {
         ls_set(KEY_MUTED, &serialize_muted(state.muted));
         ls_set(KEY_FAVORITES, &serialize_favorites(&state.favorites));
         ls_set(KEY_METRONOME_ACTIVE, &serialize_metronome_active(state.metronome_active));
+        ls_set(KEY_AUTO_PLAYBACK, &serialize_auto_playback(state.auto_playback_enabled));
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -220,6 +237,7 @@ mod tests {
         assert_eq!(state.muted, false);
         assert!(state.favorites.is_empty());
         assert_eq!(state.metronome_active, false);
+        assert_eq!(state.auto_playback_enabled, true);
     }
 
     #[test]
@@ -242,5 +260,52 @@ mod tests {
         assert_eq!(deserialize_metronome_active("1"), false);
         assert_eq!(deserialize_metronome_active("True"), false);
         assert_eq!(deserialize_metronome_active(""), false);
+    }
+
+    // ── Task 2.2: auto_playback storage helpers ───────────────────────────
+
+    #[test]
+    fn serialize_auto_playback_true() {
+        assert_eq!(serialize_auto_playback(true), "true");
+    }
+
+    #[test]
+    fn serialize_auto_playback_false() {
+        assert_eq!(serialize_auto_playback(false), "false");
+    }
+
+    #[test]
+    fn deserialize_auto_playback_true() {
+        assert_eq!(deserialize_auto_playback("true"), true);
+    }
+
+    #[test]
+    fn deserialize_auto_playback_false() {
+        assert_eq!(deserialize_auto_playback("false"), false);
+    }
+
+    #[test]
+    fn deserialize_auto_playback_empty_defaults_to_true() {
+        assert_eq!(deserialize_auto_playback(""), true);
+    }
+
+    #[test]
+    fn deserialize_auto_playback_garbage_defaults_to_true() {
+        assert_eq!(deserialize_auto_playback("garbage"), true);
+    }
+
+    // Feature: auto-playback-toggle, Property 9: Serialization round-trip
+    mod auto_playback_props {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn prop_auto_playback_serde_round_trip(value in any::<bool>()) {
+                let serialized = serialize_auto_playback(value);
+                let deserialized = deserialize_auto_playback(&serialized);
+                prop_assert_eq!(deserialized, value);
+            }
+        }
     }
 }

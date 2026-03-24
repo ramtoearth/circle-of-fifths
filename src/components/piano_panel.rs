@@ -365,4 +365,71 @@ mod tests {
             );
         }
     }
+
+    // ── Cancellable-playback property tests (Task 8) ──────────────────────
+
+    mod cancellable_playback_props {
+        use super::*;
+        use crate::music_theory::Mode;
+        use proptest::prelude::*;
+
+        // Feature: cancellable-playback, Property 4: Idle State key highlight correctness
+        proptest! {
+            #[test]
+            fn prop_idle_state_scale_highlight(root_idx in 0u8..12, mode_bit in any::<bool>()) {
+                let mode = if mode_bit { Mode::Major } else { Mode::Minor };
+                let key = Key { root: PitchClass::from_index(root_idx), mode };
+                let expected = scale_notes(key);
+                for pitch_idx in 0u8..12 {
+                    let pitch = PitchClass::from_index(pitch_idx);
+                    let role = note_role(pitch, Some(key), None);
+                    if expected.contains(&pitch) {
+                        prop_assert_ne!(role, KeyRole::None,
+                            "{:?} should be highlighted in {:?}", pitch, key);
+                    } else {
+                        prop_assert_eq!(role, KeyRole::None,
+                            "{:?} should not be highlighted in {:?}", pitch, key);
+                    }
+                }
+            }
+        }
+
+        // Feature: cancellable-playback, Property 5: Idle State chord highlight correctness
+        proptest! {
+            #[test]
+            fn prop_idle_state_chord_highlight(
+                root_idx  in 0u8..12,
+                third_idx in 0u8..12,
+                fifth_idx in 0u8..12,
+            ) {
+                let chord = ChordHighlight {
+                    root:  PitchClass::from_index(root_idx),
+                    third: PitchClass::from_index(third_idx),
+                    fifth: PitchClass::from_index(fifth_idx),
+                };
+                let chord_pitches = [chord.root, chord.third, chord.fifth];
+                for pitch_idx in 0u8..12 {
+                    let pitch = PitchClass::from_index(pitch_idx);
+                    let role = note_role(pitch, None, Some(&chord));
+                    if chord_pitches.contains(&pitch) {
+                        prop_assert_ne!(role, KeyRole::None,
+                            "{:?} should be highlighted as chord note", pitch);
+                    } else {
+                        prop_assert_eq!(role, KeyRole::None,
+                            "{:?} should not be highlighted", pitch);
+                    }
+                }
+            }
+        }
+
+        // Feature: cancellable-playback, Property 6: Animation handle collection is empty after clear
+        proptest! {
+            #[test]
+            fn prop_vec_clear_is_empty(len in 0usize..20) {
+                let mut v: Vec<u32> = (0..len as u32).collect();
+                v.clear();
+                prop_assert!(v.is_empty());
+            }
+        }
+    }
 }

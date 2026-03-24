@@ -25,6 +25,7 @@ pub fn app() -> Html {
             s.muted = persisted.muted;
             s.favorites = persisted.favorites;
             s.metronome_active = persisted.metronome_active;
+            s.auto_playback_enabled = persisted.auto_playback_enabled;
             s
         })
     };
@@ -38,6 +39,11 @@ pub fn app() -> Html {
     // ── MIDI engine — keep alive for component lifetime ───────────────────────
     // Option<MidiEngine> stored in a ref so closures (JS callbacks) are not dropped.
     let midi_engine = use_mut_ref(|| Option::<MidiEngine>::None);
+
+    // ── Cancellable playback ──────────────────────────────────────────────────
+    // Stores all Timeout handles for the active playback session.
+    // Dropping the Vec cancels every pending callback.
+    let animation_handles = use_mut_ref(|| Vec::<Timeout>::new());
 
     // Sync audio error into state on mount
     {
@@ -126,6 +132,7 @@ pub fn app() -> Html {
                 state.muted,
                 state.favorites.clone(),
                 state.metronome_active,
+                state.auto_playback_enabled,
             ),
             move |_| {
                 save_state(&state_val);
@@ -138,24 +145,50 @@ pub fn app() -> Html {
         let state = state.clone();
         let audio = audio.clone();
         let playing_note = playing_note.clone();
+        let animation_handles = animation_handles.clone();
         Callback::from(move |key| {
-            if state.selected_key != Some(key) {
-                audio.play_scale(key, state.bpm);
-                // Schedule per-note visual highlight to match audio playback
-                let notes = crate::audio::scale_note_sequence_with_octaves(key);
-                let interval_ms = (60_000.0 / state.bpm as f64) as u32;
-                for (i, &(pitch, octave)) in notes.iter().enumerate() {
-                    let playing_note = playing_note.clone();
-                    Timeout::new(i as u32 * interval_ms, move || {
-                        playing_note.set(Some((pitch, octave)));
-                    }).forget();
-                }
-                // Clear after all 8 notes
-                let playing_note = playing_note.clone();
-                Timeout::new(notes.len() as u32 * interval_ms, move || {
-                    playing_note.set(None);
-                }).forget();
+            // Cancel any active session first
+            animation_handles.borrow_mut().clear();
+            audio.stop();
+            playing_note.set(None);
+            state.dispatch(AppAction::SetPlaying(false));
+
+            if state.selected_key == Some(key) {
+                // Clicking the already-selected segment: cancel and deselect, no new session
+                state.dispatch(AppAction::SelectKey(key));
+                return;
             }
+
+            // Static highlight only when auto-playback is disabled
+            if !state.auto_playback_enabled {
+                state.dispatch(AppAction::SelectKey(key));
+                return;
+            }
+
+            // Start new session
+            audio.play_scale(key, state.bpm);
+            let notes = crate::audio::scale_note_sequence_with_octaves(key);
+            let interval_ms = 60_000u32 / state.bpm.max(1);
+            for (i, &(pitch, octave)) in notes.iter().enumerate() {
+                let playing_note = playing_note.clone();
+                let handle = Timeout::new(i as u32 * interval_ms, move || {
+                    playing_note.set(Some((pitch, octave)));
+                });
+                animation_handles.borrow_mut().push(handle);
+            }
+            // Final cleanup timeout
+            {
+                let playing_note = playing_note.clone();
+                let animation_handles_cb = animation_handles.clone();
+                let state = state.clone();
+                let handle = Timeout::new(notes.len() as u32 * interval_ms, move || {
+                    playing_note.set(None);
+                    animation_handles_cb.borrow_mut().clear();
+                    state.dispatch(AppAction::SetPlaying(false));
+                });
+                animation_handles.borrow_mut().push(handle);
+            }
+            state.dispatch(AppAction::SetPlaying(true));
             state.dispatch(AppAction::SelectKey(key));
         })
     };
@@ -172,21 +205,59 @@ pub fn app() -> Html {
     let on_progression_click = {
         let state = state.clone();
         let audio = audio.clone();
+        let animation_handles = animation_handles.clone();
+        let playing_note = playing_note.clone();
         Callback::from(move |id: ProgressionId| {
-            if let Some(ref p) = crate::data::find_progression(id) {
-                audio.play_progression(p);
-                // Schedule one Timeout per chord (indices 1..len) to advance the piano
-                // highlight in lockstep with the audio timeline (1 chord per second).
-                // Each closure captures its own state clone so dispatches are independent.
-                // The reducer's id-match and index guards make stale dispatches no-ops.
-                for i in 1..p.chords.len() {
-                    let state = state.clone();
-                    Timeout::new(i as u32 * 1000, move || {
-                        state.dispatch(AppAction::AdvanceProgressionChord(id, i));
-                    }).forget();
-                }
+            // Cancel any active session first
+            animation_handles.borrow_mut().clear();
+            audio.stop();
+            playing_note.set(None);
+            state.dispatch(AppAction::SetPlaying(false));
+
+            // If same progression is already active, only cancel — no restart
+            if state.active_progression.as_ref().map(|a| a.id) == Some(id) {
+                return;
             }
+
+            // Static highlight only when auto-playback is disabled
+            if !state.auto_playback_enabled {
+                state.dispatch(AppAction::SelectProgression(id));
+                return;
+            }
+
+            let prog = match crate::data::find_progression(id) {
+                Some(p) => p,
+                None => {
+                    state.dispatch(AppAction::SelectProgression(id));
+                    return;
+                }
+            };
+
+            audio.play_progression(&prog);
+            // SelectProgression sets index to 0 and highlights the first chord
             state.dispatch(AppAction::SelectProgression(id));
+
+            // Schedule NextChord for each subsequent chord (i=0 is already set by SelectProgression)
+            for i in 1..prog.chords.len() {
+                let state_cb = state.clone();
+                let handle = Timeout::new(i as u32 * 1000, move || {
+                    state_cb.dispatch(AppAction::NextChord);
+                });
+                animation_handles.borrow_mut().push(handle);
+            }
+
+            // Final cleanup timeout
+            {
+                let animation_handles_cb = animation_handles.clone();
+                let state_cb = state.clone();
+                let handle = Timeout::new(prog.chords.len() as u32 * 1000, move || {
+                    animation_handles_cb.borrow_mut().clear();
+                    state_cb.dispatch(AppAction::SetPlaying(false));
+                });
+                animation_handles.borrow_mut().push(handle);
+            }
+
+            state.dispatch(AppAction::SetPlaying(true));
         })
     };
 
@@ -300,6 +371,35 @@ pub fn app() -> Html {
         Callback::from(move |_: ()| state.dispatch(AppAction::ClearRollingWindow))
     };
 
+    let on_stop = {
+        let animation_handles = animation_handles.clone();
+        let audio = audio.clone();
+        let playing_note = playing_note.clone();
+        let state = state.clone();
+        Callback::from(move |_: MouseEvent| {
+            animation_handles.borrow_mut().clear();
+            audio.stop();
+            playing_note.set(None);
+            state.dispatch(AppAction::SetPlaying(false));
+        })
+    };
+
+    let on_toggle_auto_playback = {
+        let animation_handles = animation_handles.clone();
+        let audio = audio.clone();
+        let playing_note = playing_note.clone();
+        let state = state.clone();
+        Callback::from(move |_: ()| {
+            if state.is_playing {
+                animation_handles.borrow_mut().clear();
+                audio.stop();
+                playing_note.set(None);
+                state.dispatch(AppAction::SetPlaying(false));
+            }
+            state.dispatch(AppAction::ToggleAutoPlayback);
+        })
+    };
+
     // ── Derived: practice_target for PianoPanel ───────────────────────────────
     let practice_target: Option<Vec<crate::music_theory::PitchClass>> =
         if let Some(ref pa) = state.play_along_state {
@@ -334,6 +434,8 @@ pub fn app() -> Html {
                 midi_status={state.midi_status}
                 metronome_active={state.metronome_active}
                 on_toggle_metronome={on_toggle_metronome}
+                auto_playback_enabled={state.auto_playback_enabled}
+                on_toggle_auto_playback={on_toggle_auto_playback}
             />
 
             <MidiStatusBar
@@ -392,6 +494,9 @@ pub fn app() -> Html {
             }
 
             <div class="piano-footer">
+                if state.is_playing {
+                    <button class="stop-btn" onclick={on_stop} aria-label="Stop playback">{"■ Stop"}</button>
+                }
                 <PianoPanel
                     selected_key={state.selected_key}
                     highlighted_chord={state.highlighted_chord.clone()}

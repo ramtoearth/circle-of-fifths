@@ -17,6 +17,8 @@ pub struct NavBarProps {
     pub midi_status: MidiStatus,
     pub metronome_active: bool,
     pub on_toggle_metronome: Callback<()>,
+    pub auto_playback_enabled: bool,
+    pub on_toggle_auto_playback: Callback<()>,
 }
 
 #[function_component(NavBar)]
@@ -24,6 +26,7 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
     let on_toggle_theme = props.on_toggle_theme.reform(|_: MouseEvent| ());
     let on_toggle_mute = props.on_toggle_mute.reform(|_: MouseEvent| ());
     let on_toggle_metronome = props.on_toggle_metronome.reform(|_: MouseEvent| ());
+    let on_toggle_auto_playback = props.on_toggle_auto_playback.reform(|_: MouseEvent| ());
 
     let theme_label = match props.theme {
         Theme::Dark => "Light Mode",
@@ -32,6 +35,8 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
 
     let mute_label = if props.muted { "Unmute" } else { "Mute" };
     let metronome_label = if props.metronome_active { "Metronome: On" } else { "Metronome: Off" };
+    let auto_playback_label = if props.auto_playback_enabled { "Auto-Play: On" } else { "Auto-Play: Off" };
+    let auto_playback_aria = if props.auto_playback_enabled { "Disable auto-playback" } else { "Enable auto-playback" };
 
     let key_label = props.selected_key.map(|k| {
         let mode_str = match k.mode {
@@ -77,6 +82,14 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
                     onclick={on_toggle_metronome}
                 >
                     { metronome_label }
+                </button>
+                <button
+                    class="nav-bar__btn nav-bar__btn--auto-playback"
+                    onclick={on_toggle_auto_playback}
+                    aria-label={auto_playback_aria}
+                    aria-pressed={props.auto_playback_enabled.to_string()}
+                >
+                    { auto_playback_label }
                 </button>
             </div>
         </nav>
