@@ -60,6 +60,7 @@ pub struct AppState {
     pub play_along_state: Option<PlayAlongState>,
     pub metronome_active: bool,
     pub is_playing: bool,
+    pub auto_playback_enabled: bool,
 }
 
 impl Default for AppState {
@@ -86,6 +87,7 @@ impl Default for AppState {
             play_along_state: None,
             metronome_active: false,
             is_playing: false,
+            auto_playback_enabled: true,
         }
     }
 }
@@ -125,6 +127,7 @@ pub enum AppAction {
     /// can reject stale callbacks after a progression switch or key change.
     AdvanceProgressionChord(ProgressionId, usize),
     SetPlaying(bool),
+    ToggleAutoPlayback,
 }
 
 // ─────────────────────────── Constants ───────────────────────────────────────
@@ -450,6 +453,12 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
 
         // Feature: cancellable-playback
         AppAction::SetPlaying(playing) => AppState { is_playing: playing, ..state },
+
+        // Feature: auto-playback-toggle
+        AppAction::ToggleAutoPlayback => AppState {
+            auto_playback_enabled: !state.auto_playback_enabled,
+            ..state
+        },
     }
 }
 
@@ -1221,6 +1230,34 @@ mod tests {
                 prop_assert!(s4.is_playing);
             }
         }
+
+        // Feature: auto-playback-toggle, Property 1: Toggle is a boolean flip
+        // Feature: auto-playback-toggle, Property 2: Toggle round-trip restores original value
+        proptest! {
+            #[test]
+            fn prop_toggle_auto_playback_flip(initial in any::<bool>()) {
+                let s0 = AppState { auto_playback_enabled: initial, ..AppState::default() };
+                let s1 = app_reducer(s0.clone(), AppAction::ToggleAutoPlayback);
+                prop_assert_eq!(s1.auto_playback_enabled, !initial);
+                let s2 = app_reducer(s1, AppAction::ToggleAutoPlayback);
+                prop_assert_eq!(s2.auto_playback_enabled, initial);
+            }
+        }
+
+        // Feature: auto-playback-toggle, Property 8: Auto-playback toggle does not affect mute state
+        proptest! {
+            #[test]
+            fn prop_toggle_auto_playback_independence(
+                muted in any::<bool>(),
+                auto_playback in any::<bool>(),
+            ) {
+                let s0 = AppState { muted, auto_playback_enabled: auto_playback, ..AppState::default() };
+                let s1 = app_reducer(s0.clone(), AppAction::ToggleAutoPlayback);
+                prop_assert_eq!(s1.muted, muted);
+                let s2 = app_reducer(s0, AppAction::ToggleMute);
+                prop_assert_eq!(s2.auto_playback_enabled, auto_playback);
+            }
+        }
     }
 
     // Feature: cancellable-playback — unit tests for SetPlaying (Task 1.1)
@@ -1251,5 +1288,41 @@ mod tests {
         assert_eq!(s1.show_note_labels, s0.show_note_labels);
         assert_eq!(s1.selected_key, s0.selected_key);
         assert_eq!(s1.octave_offset, s0.octave_offset);
+    }
+
+    // Feature: auto-playback-toggle — unit tests (Task 1.2)
+    #[test]
+    fn toggle_auto_playback_true_to_false() {
+        let s = app_reducer(
+            AppState { auto_playback_enabled: true, ..AppState::default() },
+            AppAction::ToggleAutoPlayback,
+        );
+        assert!(!s.auto_playback_enabled);
+    }
+
+    #[test]
+    fn toggle_auto_playback_false_to_true() {
+        let s = app_reducer(
+            AppState { auto_playback_enabled: false, ..AppState::default() },
+            AppAction::ToggleAutoPlayback,
+        );
+        assert!(s.auto_playback_enabled);
+    }
+
+    #[test]
+    fn toggle_auto_playback_does_not_mutate_other_fields() {
+        let s0 = AppState { bpm: 80, muted: true, ..AppState::default() };
+        let s1 = app_reducer(s0.clone(), AppAction::ToggleAutoPlayback);
+        assert_eq!(s1.bpm, s0.bpm);
+        assert_eq!(s1.muted, s0.muted);
+        assert_eq!(s1.selected_key, s0.selected_key);
+        assert_eq!(s1.is_playing, s0.is_playing);
+    }
+
+    #[test]
+    fn toggle_mute_does_not_change_auto_playback_enabled() {
+        let s0 = AppState { auto_playback_enabled: false, ..AppState::default() };
+        let s1 = app_reducer(s0.clone(), AppAction::ToggleMute);
+        assert_eq!(s1.auto_playback_enabled, s0.auto_playback_enabled);
     }
 }

@@ -9,20 +9,20 @@ The toggle state is persisted to localStorage under `cof_auto_playback`.
 
 ## Tasks
 
-- [ ] 1. Extend AppState and reducer with auto_playback_enabled
+- [x] 1. Extend AppState and reducer with auto_playback_enabled
   - Add `pub auto_playback_enabled: bool` field to `AppState` struct in `src/state/mod.rs`
   - Set `auto_playback_enabled: true` in the `Default` impl for `AppState`
   - Add `ToggleAutoPlayback` variant to `AppAction` enum
   - Add reducer arm for `ToggleAutoPlayback` that flips `auto_playback_enabled` and leaves all other fields unchanged
   - _Requirements: 1.3, 7.1, 7.2, 7.3_
 
-  - [ ]* 1.1 Write property tests for ToggleAutoPlayback reducer
+  - [x]* 1.1 Write property tests for ToggleAutoPlayback reducer
     - **Property 1: Toggle is a boolean flip** — for any initial `auto_playback_enabled`, dispatching `ToggleAutoPlayback` produces `!initial`
     - **Property 2: Toggle round-trip restores original value** — two dispatches return to original
     - **Property 8: Auto-playback toggle does not affect mute state** — `ToggleAutoPlayback` leaves `muted` unchanged; `ToggleMute` leaves `auto_playback_enabled` unchanged
     - **Validates: Requirements 1.3, 7.1, 7.2, 7.3**
 
-  - [ ]* 1.2 Write unit tests for ToggleAutoPlayback reducer
+  - [x]* 1.2 Write unit tests for ToggleAutoPlayback reducer
     - `ToggleAutoPlayback` on `true` state → `auto_playback_enabled` is `false`
     - `ToggleAutoPlayback` on `false` state → `auto_playback_enabled` is `true`
     - `ToggleAutoPlayback` does not mutate any other field (bpm, muted, selected_key, etc.)
