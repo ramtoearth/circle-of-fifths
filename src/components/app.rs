@@ -344,22 +344,6 @@ pub fn app() -> Html {
         Callback::from(move |_| state.dispatch(AppAction::ToggleMetronome))
     };
 
-    let on_toggle_auto_playback = {
-        let state = state.clone();
-        let animation_handles = animation_handles.clone();
-        let audio = audio.clone();
-        let playing_note = playing_note.clone();
-        Callback::from(move |_: ()| {
-            if state.is_playing {
-                animation_handles.borrow_mut().clear();
-                audio.stop();
-                playing_note.set(None);
-                state.dispatch(AppAction::SetPlaying(false));
-            }
-            state.dispatch(AppAction::ToggleAutoPlayback);
-        })
-    };
-
     let on_enter_play_along = {
         let state = state.clone();
         Callback::from(move |id: ProgressionId| state.dispatch(AppAction::EnterPlayAlong(id)))
