@@ -33,7 +33,7 @@ The toggle state is persisted to localStorage under `cof_auto_playback`.
   - [x]* 2.1 Write property test for serialization round-trip
   - [x]* 2.2 Write unit tests for storage helpers
 
-- [ ] 3. Checkpoint — Ensure all tests pass
+- [x] 3. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [x] 4. Wire auto_playback_enabled into the App component
