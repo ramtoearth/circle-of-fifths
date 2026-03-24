@@ -45,7 +45,7 @@ The toggle state is persisted to localStorage under `cof_auto_playback`.
   - Pass `auto_playback_enabled={state.auto_playback_enabled}` and `on_toggle_auto_playback={on_toggle_auto_playback}` props to `NavBar`
   - _Requirements: 2.1, 2.2, 2.3, 3.1, 3.2, 4.1, 4.2, 5.1, 5.2, 5.3_
 
-- [ ] 5. Add toggle button to NavBar component
+- [x] 5. Add toggle button to NavBar component
   - In `src/components/nav_bar.rs`, add `pub auto_playback_enabled: bool` and `pub on_toggle_auto_playback: Callback<()>` to `NavBarProps`
   - Derive the button label: `"Auto-Play: On"` when `true`, `"Auto-Play: Off"` when `false`
   - Derive the `aria-label`: `"Disable auto-playback"` when `true`, `"Enable auto-playback"` when `false`

@@ -25,6 +25,7 @@ pub fn app() -> Html {
             s.muted = persisted.muted;
             s.favorites = persisted.favorites;
             s.metronome_active = persisted.metronome_active;
+            s.auto_playback_enabled = persisted.auto_playback_enabled;
             s
         })
     };
@@ -131,6 +132,7 @@ pub fn app() -> Html {
                 state.muted,
                 state.favorites.clone(),
                 state.metronome_active,
+                state.auto_playback_enabled,
             ),
             move |_| {
                 save_state(&state_val);
@@ -153,6 +155,12 @@ pub fn app() -> Html {
 
             if state.selected_key == Some(key) {
                 // Clicking the already-selected segment: cancel and deselect, no new session
+                state.dispatch(AppAction::SelectKey(key));
+                return;
+            }
+
+            // Static highlight only when auto-playback is disabled
+            if !state.auto_playback_enabled {
                 state.dispatch(AppAction::SelectKey(key));
                 return;
             }
@@ -208,6 +216,12 @@ pub fn app() -> Html {
 
             // If same progression is already active, only cancel — no restart
             if state.active_progression.as_ref().map(|a| a.id) == Some(id) {
+                return;
+            }
+
+            // Static highlight only when auto-playback is disabled
+            if !state.auto_playback_enabled {
+                state.dispatch(AppAction::SelectProgression(id));
                 return;
             }
 
@@ -330,6 +344,22 @@ pub fn app() -> Html {
         Callback::from(move |_| state.dispatch(AppAction::ToggleMetronome))
     };
 
+    let on_toggle_auto_playback = {
+        let state = state.clone();
+        let animation_handles = animation_handles.clone();
+        let audio = audio.clone();
+        let playing_note = playing_note.clone();
+        Callback::from(move |_: ()| {
+            if state.is_playing {
+                animation_handles.borrow_mut().clear();
+                audio.stop();
+                playing_note.set(None);
+                state.dispatch(AppAction::SetPlaying(false));
+            }
+            state.dispatch(AppAction::ToggleAutoPlayback);
+        })
+    };
+
     let on_enter_play_along = {
         let state = state.clone();
         Callback::from(move |id: ProgressionId| state.dispatch(AppAction::EnterPlayAlong(id)))
@@ -370,6 +400,22 @@ pub fn app() -> Html {
         })
     };
 
+    let on_toggle_auto_playback = {
+        let animation_handles = animation_handles.clone();
+        let audio = audio.clone();
+        let playing_note = playing_note.clone();
+        let state = state.clone();
+        Callback::from(move |_: ()| {
+            if state.is_playing {
+                animation_handles.borrow_mut().clear();
+                audio.stop();
+                playing_note.set(None);
+                state.dispatch(AppAction::SetPlaying(false));
+            }
+            state.dispatch(AppAction::ToggleAutoPlayback);
+        })
+    };
+
     // ── Derived: practice_target for PianoPanel ───────────────────────────────
     let practice_target: Option<Vec<crate::music_theory::PitchClass>> =
         if let Some(ref pa) = state.play_along_state {
@@ -404,6 +450,8 @@ pub fn app() -> Html {
                 midi_status={state.midi_status}
                 metronome_active={state.metronome_active}
                 on_toggle_metronome={on_toggle_metronome}
+                auto_playback_enabled={state.auto_playback_enabled}
+                on_toggle_auto_playback={on_toggle_auto_playback}
             />
 
             <MidiStatusBar
