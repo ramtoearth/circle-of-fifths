@@ -52,7 +52,7 @@ The toggle state is persisted to localStorage under `cof_auto_playback`.
   - Render a `<button>` with class `nav-bar__btn nav-bar__btn--auto-playback`, `aria-pressed={props.auto_playback_enabled.to_string()}`, and the derived label/aria-label, wired to `on_toggle_auto_playback`
   - _Requirements: 1.1, 1.2, 1.4_
 
-- [ ] 6. Final checkpoint — Ensure all tests pass
+- [x] 6. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
