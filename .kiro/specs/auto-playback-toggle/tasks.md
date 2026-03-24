@@ -36,7 +36,7 @@ The toggle state is persisted to localStorage under `cof_auto_playback`.
 - [ ] 3. Checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Wire auto_playback_enabled into the App component
+- [x] 4. Wire auto_playback_enabled into the App component
   - In `src/components/app.rs`, restore `auto_playback_enabled` from `PersistedState` in the `use_reducer` initializer
   - Add `state.auto_playback_enabled` to the dependency tuple of the `save_state` `use_effect_with` hook
   - Add `on_toggle_auto_playback` callback: if `state.is_playing`, call the cancel-session block (`animation_handles.borrow_mut().clear()`, `audio.stop()`, `playing_note.set(None)`, `dispatch SetPlaying(false)`), then dispatch `ToggleAutoPlayback`
