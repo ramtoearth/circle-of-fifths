@@ -106,8 +106,8 @@ Extend the metronome with time signature support (numerator/denominator), accent
     - Extract a pure `format_time_signature(ts: TimeSignature) -> String` helper and test it
     - **Validates: Requirements 2.6**
 
-- [ ] 7. Final checkpoint — Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 7. Final checkpoint — Ensure all tests pass
+  - All 171 tests pass.
 
 ## Notes
 
