@@ -15,6 +15,28 @@ pub use crate::music_theory::{
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum Theme { Dark, Light }
 
+// ─────────────────────────── TimeSignature ───────────────────────────────────
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct TimeSignature {
+    pub numerator: u32,   // 1–16
+    pub denominator: u32, // 1 | 2 | 4 | 8 | 16
+}
+
+impl TimeSignature {
+    pub const DEFAULT: Self = Self { numerator: 4, denominator: 4 };
+
+    pub fn validated(numerator: u32, denominator: u32) -> Option<Self> {
+        if numerator < 1 || numerator > 16 { return None; }
+        if !matches!(denominator, 1 | 2 | 4 | 8 | 16) { return None; }
+        Some(Self { numerator, denominator })
+    }
+
+    pub fn beat_interval_ms(bpm: u32, denominator: u32) -> u32 {
+        60_000 * 4 / bpm.max(1) / denominator
+    }
+}
+
 // ─────────────────────────── MIDI app-level types ────────────────────────────
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -61,6 +83,7 @@ pub struct AppState {
     pub metronome_active: bool,
     pub is_playing: bool,
     pub auto_playback_enabled: bool,
+    pub time_signature: TimeSignature,
 }
 
 impl Default for AppState {
@@ -88,6 +111,7 @@ impl Default for AppState {
             metronome_active: false,
             is_playing: false,
             auto_playback_enabled: true,
+            time_signature: TimeSignature::DEFAULT,
         }
     }
 }
@@ -128,6 +152,7 @@ pub enum AppAction {
     AdvanceProgressionChord(ProgressionId, usize),
     SetPlaying(bool),
     ToggleAutoPlayback,
+    SetTimeSignature(u32, u32),
 }
 
 // ─────────────────────────── Constants ───────────────────────────────────────
@@ -459,6 +484,15 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             auto_playback_enabled: !state.auto_playback_enabled,
             ..state
         },
+
+        // Feature: metronome-time-signature
+        AppAction::SetTimeSignature(n, d) => {
+            if let Some(ts) = TimeSignature::validated(n, d) {
+                AppState { time_signature: ts, ..state }
+            } else {
+                state
+            }
+        }
     }
 }
 
@@ -1324,5 +1358,92 @@ mod tests {
         let s0 = AppState { auto_playback_enabled: false, ..AppState::default() };
         let s1 = app_reducer(s0.clone(), AppAction::ToggleMute);
         assert_eq!(s1.auto_playback_enabled, s0.auto_playback_enabled);
+    }
+
+    // ── Task 1: TimeSignature unit tests (1.4) ────────────────────────────
+
+    // Feature: metronome-time-signature
+    #[test]
+    fn time_signature_default_is_4_4() {
+        assert_eq!(TimeSignature::DEFAULT, TimeSignature { numerator: 4, denominator: 4 });
+    }
+
+    #[test]
+    fn validated_rejects_numerator_zero_and_seventeen() {
+        assert!(TimeSignature::validated(0, 4).is_none());
+        assert!(TimeSignature::validated(17, 4).is_none());
+    }
+
+    #[test]
+    fn validated_rejects_invalid_denominators() {
+        for d in [3u32, 5, 6, 7] {
+            assert!(TimeSignature::validated(4, d).is_none(), "denominator {d} should be rejected");
+        }
+    }
+
+    #[test]
+    fn beat_interval_ms_examples() {
+        assert_eq!(TimeSignature::beat_interval_ms(120, 4), 500);
+        assert_eq!(TimeSignature::beat_interval_ms(120, 8), 250);
+        assert_eq!(TimeSignature::beat_interval_ms(120, 2), 1000);
+    }
+
+    #[test]
+    fn set_time_signature_invalid_numerator_leaves_state_unchanged() {
+        let s0 = AppState::default();
+        let s1 = app_reducer(s0.clone(), AppAction::SetTimeSignature(0, 4));
+        assert_eq!(s1.time_signature, s0.time_signature);
+    }
+
+    #[test]
+    fn set_time_signature_invalid_denominator_leaves_state_unchanged() {
+        let s0 = AppState::default();
+        let s1 = app_reducer(s0.clone(), AppAction::SetTimeSignature(4, 3));
+        assert_eq!(s1.time_signature, s0.time_signature);
+    }
+
+    #[test]
+    fn set_time_signature_valid_updates_state() {
+        let s0 = AppState::default();
+        let s1 = app_reducer(s0, AppAction::SetTimeSignature(3, 8));
+        assert_eq!(s1.time_signature, TimeSignature { numerator: 3, denominator: 8 });
+    }
+
+    // Feature: metronome-time-signature, Property 1: Valid numerator acceptance (1.1)
+    mod time_signature_property_tests {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn prop_valid_numerator(n: u32) {
+                let result = TimeSignature::validated(n, 4);
+                if n >= 1 && n <= 16 {
+                    prop_assert!(result.is_some());
+                } else {
+                    prop_assert!(result.is_none());
+                }
+            }
+        }
+
+        // Feature: metronome-time-signature, Property 2: Valid denominator acceptance (1.2)
+        proptest! {
+            #[test]
+            fn prop_valid_denominator(d: u32) {
+                let result = TimeSignature::validated(4, d);
+                let valid = matches!(d, 1 | 2 | 4 | 8 | 16);
+                prop_assert_eq!(result.is_some(), valid);
+            }
+        }
+
+        // Feature: metronome-time-signature, Property 8: Beat interval formula correctness (1.3)
+        proptest! {
+            #[test]
+            fn prop_beat_interval_formula(bpm in 40u32..=200, d in proptest::sample::select(vec![1u32, 2, 4, 8, 16])) {
+                let expected = 60_000 * 4 / bpm / d;
+                let actual = TimeSignature::beat_interval_ms(bpm, d);
+                prop_assert_eq!(actual, expected);
+            }
+        }
     }
 }

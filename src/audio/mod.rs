@@ -212,6 +212,11 @@ impl AudioEngine {
         0.0
     }
 
+    /// Accent click frequency (beat 1 of each bar).
+    pub const ACCENT_FREQ: f32 = 1800.0;
+    /// Regular click frequency (all other beats).
+    pub const REGULAR_FREQ: f32 = 1200.0;
+
     /// Schedule a single short metronome click at `start` seconds (AudioContext time).
     /// Uses a triangle oscillator at 1200 Hz with a 30 ms duration and fast decay.
     pub fn schedule_metronome_click(&self, start: f64) {
@@ -249,6 +254,47 @@ impl AudioEngine {
         }
         #[cfg(not(target_arch = "wasm32"))]
         let _ = start;
+    }
+
+    /// Schedule a metronome click, using accent frequency on beat 1 (`is_accent = true`)
+    /// and regular frequency on all other beats.
+    /// Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6
+    pub fn schedule_metronome_click_accented(&self, start: f64, is_accent: bool) {
+        if self.muted {
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(ctx) = &self.ctx {
+            use web_sys::OscillatorType;
+
+            let oscillator = match ctx.create_oscillator() {
+                Ok(o) => o,
+                Err(_) => return,
+            };
+            let gain_node = match ctx.create_gain() {
+                Ok(g) => g,
+                Err(_) => return,
+            };
+
+            let freq = if is_accent { Self::ACCENT_FREQ } else { Self::REGULAR_FREQ };
+            oscillator.set_type(OscillatorType::Triangle);
+            oscillator.frequency().set_value(freq);
+
+            let gain_param = gain_node.gain();
+            let _ = gain_param.set_value_at_time(0.5, start);
+            let _ = gain_param.exponential_ramp_to_value_at_time(0.001, start + 0.03);
+
+            if oscillator
+                .connect_with_audio_node(&gain_node)
+                .and_then(|_| gain_node.connect_with_audio_node(&ctx.destination()))
+                .is_ok()
+            {
+                let _ = oscillator.start_with_when(start);
+                let _ = oscillator.stop_with_when(start + 0.035);
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = (start, is_accent);
     }
 
     /// Suspend audio playback immediately.
@@ -347,6 +393,10 @@ impl AudioEngineHandle {
 
     pub fn schedule_metronome_click(&self, start: f64) {
         self.0.borrow().schedule_metronome_click(start);
+    }
+
+    pub fn schedule_metronome_click_accented(&self, start: f64, is_accent: bool) {
+        self.0.borrow().schedule_metronome_click_accented(start, is_accent);
     }
 
 }

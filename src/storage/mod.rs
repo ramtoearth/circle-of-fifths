@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::state::{AppState, ProgressionId, Theme};
+use crate::state::{AppState, ProgressionId, Theme, TimeSignature};
 
 #[allow(dead_code)]
 const KEY_THEME: &str = "cof_theme";
@@ -12,6 +12,8 @@ const KEY_FAVORITES: &str = "cof_favorites";
 const KEY_METRONOME_ACTIVE: &str = "cof_metronome_active";
 #[allow(dead_code)]
 const KEY_AUTO_PLAYBACK: &str = "cof_auto_playback";
+#[allow(dead_code)]
+const KEY_TIME_SIGNATURE: &str = "cof_time_signature";
 
 /// The subset of `AppState` that is persisted to localStorage.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -21,6 +23,7 @@ pub struct PersistedState {
     pub favorites: Vec<ProgressionId>,
     pub metronome_active: bool,
     pub auto_playback_enabled: bool,
+    pub time_signature: TimeSignature,
 }
 
 impl Default for PersistedState {
@@ -31,6 +34,7 @@ impl Default for PersistedState {
             favorites: Vec::new(),
             metronome_active: false,
             auto_playback_enabled: true,
+            time_signature: TimeSignature::DEFAULT,
         }
     }
 }
@@ -84,6 +88,20 @@ pub fn deserialize_auto_playback(s: &str) -> bool {
     s != "false"
 }
 
+pub fn serialize_time_signature(ts: TimeSignature) -> String {
+    format!("{}/{}", ts.numerator, ts.denominator)
+}
+
+pub fn deserialize_time_signature(s: &str) -> TimeSignature {
+    let mut parts = s.splitn(2, '/');
+    let n = parts.next().and_then(|p| p.parse::<u32>().ok());
+    let d = parts.next().and_then(|p| p.parse::<u32>().ok());
+    match (n, d) {
+        (Some(n), Some(d)) => TimeSignature::validated(n, d).unwrap_or(TimeSignature::DEFAULT),
+        _ => TimeSignature::DEFAULT,
+    }
+}
+
 // --- localStorage I/O (WASM only) ---
 
 #[cfg(target_arch = "wasm32")]
@@ -122,7 +140,10 @@ pub fn load_state() -> PersistedState {
         let auto_playback_enabled = ls_get(KEY_AUTO_PLAYBACK)
             .map(|s| deserialize_auto_playback(&s))
             .unwrap_or(true);
-        PersistedState { theme, muted, favorites, metronome_active, auto_playback_enabled }
+        let time_signature = ls_get(KEY_TIME_SIGNATURE)
+            .map(|s| deserialize_time_signature(&s))
+            .unwrap_or(TimeSignature::DEFAULT);
+        PersistedState { theme, muted, favorites, metronome_active, auto_playback_enabled, time_signature }
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -139,6 +160,7 @@ pub fn save_state(state: &AppState) {
         ls_set(KEY_FAVORITES, &serialize_favorites(&state.favorites));
         ls_set(KEY_METRONOME_ACTIVE, &serialize_metronome_active(state.metronome_active));
         ls_set(KEY_AUTO_PLAYBACK, &serialize_auto_playback(state.auto_playback_enabled));
+        ls_set(KEY_TIME_SIGNATURE, &serialize_time_signature(state.time_signature));
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -238,6 +260,7 @@ mod tests {
         assert!(state.favorites.is_empty());
         assert_eq!(state.metronome_active, false);
         assert_eq!(state.auto_playback_enabled, true);
+        assert_eq!(state.time_signature, TimeSignature::DEFAULT);
     }
 
     #[test]
@@ -305,6 +328,48 @@ mod tests {
                 let serialized = serialize_auto_playback(value);
                 let deserialized = deserialize_auto_playback(&serialized);
                 prop_assert_eq!(deserialized, value);
+            }
+        }
+    }
+
+    // ── Task 4: time_signature storage helpers ────────────────────────────
+
+    // Feature: metronome-time-signature, Task 4.2: unit tests
+    #[test]
+    fn deserialize_time_signature_absent_returns_default() {
+        assert_eq!(deserialize_time_signature(""), TimeSignature::DEFAULT);
+    }
+
+    #[test]
+    fn deserialize_time_signature_invalid_numerator_returns_default() {
+        assert_eq!(deserialize_time_signature("0/4"), TimeSignature::DEFAULT);
+    }
+
+    #[test]
+    fn deserialize_time_signature_invalid_denominator_returns_default() {
+        assert_eq!(deserialize_time_signature("4/3"), TimeSignature::DEFAULT);
+    }
+
+    #[test]
+    fn deserialize_time_signature_garbage_returns_default() {
+        assert_eq!(deserialize_time_signature("not-a-sig"), TimeSignature::DEFAULT);
+    }
+
+    // Feature: metronome-time-signature, Property 3: Serialization round-trip (Task 4.1)
+    mod time_signature_props {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn prop_time_sig_serde_round_trip(
+                n in 1u32..=16,
+                d in proptest::sample::select(vec![1u32, 2, 4, 8, 16]),
+            ) {
+                let ts = TimeSignature { numerator: n, denominator: d };
+                let s = serialize_time_signature(ts);
+                let restored = deserialize_time_signature(&s);
+                prop_assert_eq!(restored, ts);
             }
         }
     }

@@ -5,7 +5,6 @@ use super::{
     chord_note_sequence, pitch_to_freq, progression_chord_sequences, scale_note_sequence,
     AudioEngine,
 };
-
 // ── Task 14.1 ─────────────────────────────────────────────────────────────────
 // Feature: circle-of-fifths, Property 19: Audio note sequence correctness
 
@@ -138,4 +137,30 @@ fn pitch_to_freq_increases_with_octave() {
     let c4 = pitch_to_freq(PitchClass::C, 4);
     let c5 = pitch_to_freq(PitchClass::C, 5);
     assert!((c5 / c4 - 2.0).abs() < 0.001, "C5 should be exactly one octave above C4");
+}
+
+// ── Task 2.1 ──────────────────────────────────────────────────────────────────
+// Feature: metronome-time-signature, Property 6: Accent pitch is higher than regular pitch
+
+#[test]
+fn accent_freq_greater_than_regular_freq() {
+    assert!(AudioEngine::ACCENT_FREQ > AudioEngine::REGULAR_FREQ);
+}
+
+// ── Task 2.2 ──────────────────────────────────────────────────────────────────
+// Feature: metronome-time-signature, Property 7: Mute suppresses all clicks
+
+#[test]
+fn muted_engine_schedule_metronome_click_accented_does_not_panic() {
+    let mut engine = AudioEngine::new_degraded("err".to_string());
+    engine.set_muted(true);
+    engine.schedule_metronome_click_accented(0.0, true);  // must not panic
+    engine.schedule_metronome_click_accented(0.0, false); // must not panic
+}
+
+#[test]
+fn degraded_engine_schedule_metronome_click_accented_does_not_panic() {
+    let engine = AudioEngine::new_degraded("err".to_string());
+    engine.schedule_metronome_click_accented(0.0, true);
+    engine.schedule_metronome_click_accented(0.0, false);
 }
