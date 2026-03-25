@@ -52,8 +52,8 @@ Extend the metronome with time signature support (numerator/denominator), accent
     - Construct a degraded engine, set `muted = true`, call `schedule_metronome_click_accented`, assert no panic
     - **Validates: Requirements 4.5**
 
-- [ ] 3. Checkpoint — Ensure all tests pass
-  - Ensure all tests pass, ask the user if questions arise.
+- [x] 3. Checkpoint — Ensure all tests pass
+  - All 169 tests pass.
 
 - [x] 4. Update `storage/mod.rs` to persist `time_signature`
   - Add `KEY_TIME_SIGNATURE: &str = "cof_time_signature"` constant
