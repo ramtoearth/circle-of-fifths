@@ -11,7 +11,7 @@ use crate::components::progression_panel::ProgressionPanel;
 use crate::components::play_along_panel::PlayAlongPanel;
 use crate::midi::{detect_keys, recognize_chord, ChordResult, MidiEngine};
 use crate::music_theory::DiatonicChord;
-use crate::state::{AppAction, AppMode, AppState, ProgressionId, Theme};
+use crate::state::{AppAction, AppMode, AppState, ProgressionId, Theme, TimeSignature};
 use crate::storage::{load_state, save_state};
 
 #[function_component(App)]
@@ -26,6 +26,7 @@ pub fn app() -> Html {
             s.favorites = persisted.favorites;
             s.metronome_active = persisted.metronome_active;
             s.auto_playback_enabled = persisted.auto_playback_enabled;
+            s.time_signature = persisted.time_signature;
             s
         })
     };
@@ -44,6 +45,9 @@ pub fn app() -> Html {
     // Stores all Timeout handles for the active playback session.
     // Dropping the Vec cancels every pending callback.
     let animation_handles = use_mut_ref(|| Vec::<Timeout>::new());
+
+    // Beat index counter for metronome accent tracking
+    let beat_index = use_mut_ref(|| 0u32);
 
     // Sync audio error into state on mount
     {
@@ -104,20 +108,25 @@ pub fn app() -> Html {
         });
     }
 
-    // Metronome: schedule clicks via an Interval recreated when bpm or active changes
+    // Metronome: schedule clicks via an Interval recreated when bpm, active, or time_signature changes
     {
         let audio = audio.clone();
         let bpm = state.bpm;
         let metronome_active = state.metronome_active;
-        use_effect_with((bpm, metronome_active), move |&(bpm, active)| {
+        let time_signature = state.time_signature;
+        let beat_index = beat_index.clone();
+        use_effect_with((bpm, metronome_active, time_signature), move |&(bpm, active, ts)| {
+            *beat_index.borrow_mut() = 0;
             if !active {
                 return Box::new(|| ()) as Box<dyn FnOnce()>;
             }
-            let interval_ms = (60_000u32).saturating_div(bpm.max(1));
+            let interval_ms = TimeSignature::beat_interval_ms(bpm, ts.denominator);
             let audio = audio.clone();
             let handle = Interval::new(interval_ms, move || {
-                let start = audio.current_time() + 0.02; // 20 ms lookahead
-                audio.schedule_metronome_click(start);
+                let start = audio.current_time() + 0.02;
+                let idx = *beat_index.borrow();
+                audio.schedule_metronome_click_accented(start, idx == 0);
+                *beat_index.borrow_mut() = (idx + 1) % ts.numerator;
             });
             Box::new(move || drop(handle)) as Box<dyn FnOnce()>
         });
@@ -133,6 +142,7 @@ pub fn app() -> Html {
                 state.favorites.clone(),
                 state.metronome_active,
                 state.auto_playback_enabled,
+                state.time_signature,
             ),
             move |_| {
                 save_state(&state_val);

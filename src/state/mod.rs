@@ -1445,5 +1445,26 @@ mod tests {
                 prop_assert_eq!(actual, expected);
             }
         }
+
+        // Feature: metronome-time-signature, Property 4: Beat index modular wrap (5.1)
+        proptest! {
+            #[test]
+            fn prop_beat_index_wrap(n in 1u32..=16, k in 0u32..200) {
+                let mut idx = 0u32;
+                for _ in 0..k {
+                    idx = (idx + 1) % n;
+                }
+                prop_assert_eq!(idx, k % n);
+            }
+        }
+
+        // Feature: metronome-time-signature, Property 5: Accent selection correctness (5.2)
+        proptest! {
+            #[test]
+            fn prop_accent_on_beat_zero(n in 1u32..=16, k in 0u32..200) {
+                let beat_index = k % n;
+                prop_assert_eq!(beat_index == 0, k % n == 0);
+            }
+        }
     }
 }

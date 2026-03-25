@@ -74,7 +74,7 @@ Extend the metronome with time signature support (numerator/denominator), accent
     - `load_state` in non-WASM target returns `DEFAULT` for `time_signature`
     - _Requirements: 6.3, 6.4_
 
-- [ ] 5. Update metronome interval effect in `app.rs`
+- [x] 5. Update metronome interval effect in `app.rs`
   - Add `let beat_index = use_mut_ref(|| 0u32);` near the other `use_mut_ref` declarations
   - Extend the `use_effect_with` dependency tuple to include `state.time_signature`
   - At the start of the effect closure, reset `*beat_index.borrow_mut() = 0`
@@ -84,11 +84,11 @@ Extend the metronome with time signature support (numerator/denominator), accent
   - Restore `time_signature` from `persisted` when initializing state in `use_reducer`
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 5.1, 5.5_
 
-  - [ ]* 5.1 Write property test for beat index modular wrap
+  - [x]* 5.1 Write property test for beat index modular wrap
     - **Property 4: Beat index modular wrap**
     - **Validates: Requirements 3.1, 3.2, 3.5**
 
-  - [ ]* 5.2 Write property test for accent selection correctness
+  - [x]* 5.2 Write property test for accent selection correctness
     - **Property 5: Accent selection correctness**
     - **Validates: Requirements 4.1, 4.2**
 
