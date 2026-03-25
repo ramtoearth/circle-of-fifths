@@ -1,9 +1,9 @@
-use web_sys::HtmlInputElement;
+use web_sys::{HtmlInputElement, HtmlSelectElement};
 use yew::prelude::*;
 
 use crate::midi::MidiStatus;
 use crate::music_theory::{Key, Mode};
-use crate::state::Theme;
+use crate::state::{Theme, TimeSignature};
 
 #[derive(Properties, PartialEq)]
 pub struct NavBarProps {
@@ -19,6 +19,8 @@ pub struct NavBarProps {
     pub on_toggle_metronome: Callback<()>,
     pub auto_playback_enabled: bool,
     pub on_toggle_auto_playback: Callback<()>,
+    pub time_signature: TimeSignature,
+    pub on_set_time_signature: Callback<(u32, u32)>,
 }
 
 #[function_component(NavBar)]
@@ -56,6 +58,29 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
         })
     };
 
+    let numerator = props.time_signature.numerator;
+    let denominator = props.time_signature.denominator;
+
+    let on_numerator_change = {
+        let cb = props.on_set_time_signature.clone();
+        Callback::from(move |e: Event| {
+            let sel = e.target_unchecked_into::<HtmlSelectElement>();
+            if let Ok(n) = sel.value().parse::<u32>() {
+                cb.emit((n, denominator));
+            }
+        })
+    };
+
+    let on_denominator_change = {
+        let cb = props.on_set_time_signature.clone();
+        Callback::from(move |e: Event| {
+            let sel = e.target_unchecked_into::<HtmlSelectElement>();
+            if let Ok(d) = sel.value().parse::<u32>() {
+                cb.emit((numerator, d));
+            }
+        })
+    };
+
     html! {
         <nav class="nav-bar">
             <span class="nav-bar__title">{ "Circle of Fifths" }</span>
@@ -70,6 +95,21 @@ pub fn nav_bar(props: &NavBarProps) -> Html {
                         value={props.bpm.to_string()}
                         oninput={on_bpm_input}
                     />
+                </label>
+                <label class="nav-bar__time-sig">
+                    { "Time: " }
+                    <select onchange={on_numerator_change} value={numerator.to_string()}>
+                        { for (1u32..=16).map(|n| html! {
+                            <option value={n.to_string()} selected={n == numerator}>{ n }</option>
+                        }) }
+                    </select>
+                    { "/" }
+                    <select onchange={on_denominator_change} value={denominator.to_string()}>
+                        { for [1u32, 2, 4, 8, 16].iter().map(|&d| html! {
+                            <option value={d.to_string()} selected={d == denominator}>{ d }</option>
+                        }) }
+                    </select>
+                    <span class="nav-bar__time-sig-label">{ format!("{}/{}", numerator, denominator) }</span>
                 </label>
                 <button class="nav-bar__btn nav-bar__btn--theme" onclick={on_toggle_theme}>
                     { theme_label }

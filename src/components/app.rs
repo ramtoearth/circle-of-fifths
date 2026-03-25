@@ -400,6 +400,11 @@ pub fn app() -> Html {
         })
     };
 
+    let on_set_time_signature = {
+        let state = state.clone();
+        Callback::from(move |(n, d): (u32, u32)| state.dispatch(AppAction::SetTimeSignature(n, d)))
+    };
+
     // ── Derived: practice_target for PianoPanel ───────────────────────────────
     let practice_target: Option<Vec<crate::music_theory::PitchClass>> =
         if let Some(ref pa) = state.play_along_state {
@@ -436,6 +441,8 @@ pub fn app() -> Html {
                 on_toggle_metronome={on_toggle_metronome}
                 auto_playback_enabled={state.auto_playback_enabled}
                 on_toggle_auto_playback={on_toggle_auto_playback}
+                time_signature={state.time_signature}
+                on_set_time_signature={on_set_time_signature}
             />
 
             <MidiStatusBar

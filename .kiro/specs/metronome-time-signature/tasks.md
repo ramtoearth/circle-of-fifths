@@ -92,7 +92,7 @@ Extend the metronome with time signature support (numerator/denominator), accent
     - **Property 5: Accent selection correctness**
     - **Validates: Requirements 4.1, 4.2**
 
-- [ ] 6. Add time signature controls to `NavBar`
+- [x] 6. Add time signature controls to `NavBar`
   - Add `time_signature: TimeSignature` and `on_set_time_signature: Callback<(u32, u32)>` to `NavBarProps`
   - Add a numerator `<select>` with options 1–16 that emits `on_set_time_signature` with the new numerator and current denominator on change
   - Add a denominator `<select>` with options 1, 2, 4, 8, 16 that emits `on_set_time_signature` with the current numerator and new denominator on change
@@ -101,7 +101,7 @@ Extend the metronome with time signature support (numerator/denominator), accent
   - Pass `time_signature` and `on_set_time_signature` props from `App` to `NavBar`
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
-  - [ ]* 6.1 Write property test for time signature display format
+  - [x]* 6.1 Write property test for time signature display format
     - **Property 9: Time signature display format**
     - Extract a pure `format_time_signature(ts: TimeSignature) -> String` helper and test it
     - **Validates: Requirements 2.6**
