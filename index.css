@@ -1018,18 +1018,21 @@ svg text {
     justify-content: center;
     padding: 8px 4px;
     border-radius: 6px;
-    border: 2px solid rgba(120, 180, 255, 0.4);
-    background: rgba(120, 180, 255, 0.1);
+    border: 1px solid var(--border);
+    background: var(--surface-raised);
+    color: var(--text);
     cursor: pointer;
     font-weight: 600;
     position: relative;
-    transition: background 0.1s ease;
+    transition: background 0.12s, border-color 0.12s;
     user-select: none;
     font-size: 0.82em;
 }
 
 .chord-tile:hover {
-    background: rgba(120, 180, 255, 0.28);
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-accent);
 }
 
 .chord-tile__roman {
@@ -1049,7 +1052,7 @@ svg text {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: var(--accent-color, #7cb8ff);
+    background: var(--accent);
     color: #000;
     font-size: 11px;
     font-weight: 700;
@@ -1112,15 +1115,6 @@ svg text {
 .light .builder-panel__slot {
     background: rgba(60, 120, 220, 0.15);
     border-color: rgba(60, 120, 220, 0.4);
-}
-
-.light .chord-tile {
-    border-color: rgba(60, 120, 220, 0.4);
-    background: rgba(60, 120, 220, 0.08);
-}
-
-.light .chord-tile:hover {
-    background: rgba(60, 120, 220, 0.2);
 }
 
 .light .builder-panel__placeholder {
