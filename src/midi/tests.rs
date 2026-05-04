@@ -93,9 +93,9 @@ fn test_midi_status_variants() {
 // ─────────────────────────── Score types ──────────────────────────────────
 
 #[test]
-fn test_play_along_score_default() {
-    let s = PlayAlongScore::default();
-    assert!(s.chord_results.is_empty());
+fn test_play_along_score_default_removed() {
+    // PlayAlongScore was removed in play-along-redesign
+    assert!(true);
 }
 
 // ─────────────────────────── Chord Recognition (Task 3) ───────────────────────

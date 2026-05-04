@@ -1,7 +1,7 @@
 use yew::prelude::*;
 
 use crate::midi::HeldNote;
-use crate::music_theory::{scale_notes, ChordHighlight, Key, KeyRole, PitchClass};
+use crate::music_theory::{scale_notes, ChordHighlight, DiatonicChord, Key, KeyRole, PitchClass};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -13,6 +13,41 @@ pub const TOTAL_SEMITONES: usize = NUM_OCTAVES * 12; // 36
 
 /// Pixel width of each white key — used for auto-scroll calculations.
 const WHITE_KEY_WIDTH_PX: i32 = 32;
+
+// ── FingerHint types ─────────────────────────────────────────────────────────
+
+/// A finger position indicator for one note of a chord.
+///
+/// `finger` uses the standard piano fingering convention:
+///   1 = thumb, 2 = index, 3 = middle, 4 = ring, 5 = pinky.
+/// For root-position triads the default assignment is [1, 3, 5].
+#[derive(Clone, PartialEq, Debug)]
+pub struct FingerHint {
+    pub pitch_class: PitchClass,
+    /// Finger number (1–5).
+    pub finger: u8,
+    /// `true` when this pitch class is currently held by the player (octave-agnostic).
+    pub held: bool,
+}
+
+/// Build finger hint indicators for a triad chord.
+///
+/// Zips `chord.notes[0..3]` with finger numbers `[1, 3, 5]`.
+/// The `held` field is set to `true` when any held note matches the pitch class
+/// (independent of octave).
+pub fn finger_hints_for_chord(chord: &DiatonicChord, held: &[HeldNote]) -> Vec<FingerHint> {
+    let held_pcs: Vec<PitchClass> = held.iter().map(|n| n.pitch_class).collect();
+    let fingers = [1u8, 3, 5];
+    chord.notes[..3]
+        .iter()
+        .zip(fingers.iter())
+        .map(|(&pc, &finger)| FingerHint {
+            pitch_class: pc,
+            finger,
+            held: held_pcs.contains(&pc),
+        })
+        .collect()
+}
 
 // ── Pure logic (testable without WASM) ──────────────────────────────────────
 
@@ -93,6 +128,10 @@ pub struct PianoPanelProps {
     /// held keys not in target get `midi-incorrect` (Property 13).
     #[prop_or_default]
     pub practice_target: Option<Vec<PitchClass>>,
+    /// Finger position indicators shown above piano keys during play-along mode.
+    /// When `None`, no indicators are rendered.
+    #[prop_or_default]
+    pub finger_hints: Option<Vec<FingerHint>>,
 }
 
 #[function_component(PianoPanel)]
@@ -182,8 +221,23 @@ pub fn piano_panel(props: &PianoPanelProps) -> Html {
                 .unwrap_or_default();
             let show_labels = props.show_labels;
 
+            // Finger hint indicator — look up by pitch class (one hint per key)
+            let finger_hint_html: Html = props.finger_hints
+                .as_deref()
+                .and_then(|hints| hints.iter().find(|h| h.pitch_class == pitch))
+                .map(|hint| {
+                    let hint_cls = if hint.held {
+                        "finger-hint finger-hint--held"
+                    } else {
+                        "finger-hint"
+                    };
+                    html! { <div class={hint_cls}>{ hint.finger }</div> }
+                })
+                .unwrap_or_default();
+
             html! {
                 <div class={classes} style={style} key={i as u32}>
+                    { finger_hint_html }
                     if show_labels {
                         <span class="piano-key__label">{ label }</span>
                     }
@@ -430,6 +484,122 @@ mod tests {
                 v.clear();
                 prop_assert!(v.is_empty());
             }
+        }
+    }
+
+    // ── FingerHint tests (Task 5.1) ───────────────────────────────────────────
+
+    mod finger_hint_tests {
+        use super::*;
+        use crate::midi::HeldNote;
+        use crate::music_theory::{ChordQuality, DiatonicChord, ScaleDegree};
+
+        fn make_held(pitch_class: PitchClass, octave: i8) -> HeldNote {
+            let midi_note = ((octave + 1) as u8) * 12 + pitch_class.to_index();
+            HeldNote { midi_note, velocity: 80, pitch_class, octave }
+        }
+
+        fn c_major_chord() -> DiatonicChord {
+            DiatonicChord {
+                degree: ScaleDegree::I,
+                quality: ChordQuality::Major,
+                root: PitchClass::C,
+                notes: [PitchClass::C, PitchClass::E, PitchClass::G],
+            }
+        }
+
+        fn a_minor_chord() -> DiatonicChord {
+            DiatonicChord {
+                degree: ScaleDegree::VI,
+                quality: ChordQuality::Minor,
+                root: PitchClass::A,
+                notes: [PitchClass::A, PitchClass::C, PitchClass::E],
+            }
+        }
+
+        // Feature: play-along-redesign, Property 2.2: correct finger numbers [1, 3, 5]
+        #[test]
+        fn finger_numbers_are_one_three_five_for_major_chord() {
+            let chord = c_major_chord();
+            let hints = finger_hints_for_chord(&chord, &[]);
+            assert_eq!(hints.len(), 3);
+            assert_eq!(hints[0].finger, 1);
+            assert_eq!(hints[1].finger, 3);
+            assert_eq!(hints[2].finger, 5);
+        }
+
+        #[test]
+        fn finger_numbers_are_one_three_five_for_minor_chord() {
+            let chord = a_minor_chord();
+            let hints = finger_hints_for_chord(&chord, &[]);
+            assert_eq!(hints.len(), 3);
+            assert_eq!(hints[0].finger, 1);
+            assert_eq!(hints[1].finger, 3);
+            assert_eq!(hints[2].finger, 5);
+        }
+
+        // Feature: play-along-redesign, Property 2.2: pitch classes map to root/third/fifth
+        #[test]
+        fn pitch_classes_match_chord_notes() {
+            let chord = c_major_chord();
+            let hints = finger_hints_for_chord(&chord, &[]);
+            assert_eq!(hints[0].pitch_class, PitchClass::C); // root
+            assert_eq!(hints[1].pitch_class, PitchClass::E); // third
+            assert_eq!(hints[2].pitch_class, PitchClass::G); // fifth
+        }
+
+        // Feature: play-along-redesign, Property 2.4: held field is octave-agnostic
+        #[test]
+        fn held_true_when_pitch_class_present_any_octave() {
+            let chord = c_major_chord();
+            // Hold notes in a different octave than the default display
+            let held = vec![
+                make_held(PitchClass::C, 3),
+                make_held(PitchClass::E, 5),
+                // G is absent
+            ];
+            let hints = finger_hints_for_chord(&chord, &held);
+            assert!(hints[0].held,  "C (root) should be held");
+            assert!(hints[1].held,  "E (third) should be held");
+            assert!(!hints[2].held, "G (fifth) should NOT be held");
+        }
+
+        #[test]
+        fn held_false_when_no_notes_held() {
+            let chord = c_major_chord();
+            let hints = finger_hints_for_chord(&chord, &[]);
+            assert!(!hints[0].held);
+            assert!(!hints[1].held);
+            assert!(!hints[2].held);
+        }
+
+        #[test]
+        fn held_true_for_all_when_full_chord_held() {
+            let chord = c_major_chord();
+            let held = vec![
+                make_held(PitchClass::C, 4),
+                make_held(PitchClass::E, 4),
+                make_held(PitchClass::G, 4),
+            ];
+            let hints = finger_hints_for_chord(&chord, &held);
+            assert!(hints.iter().all(|h| h.held));
+        }
+
+        #[test]
+        fn works_for_minor_chord() {
+            let chord = a_minor_chord();
+            let held = vec![
+                make_held(PitchClass::A, 3),
+                make_held(PitchClass::C, 4),
+                // E not held
+            ];
+            let hints = finger_hints_for_chord(&chord, &held);
+            assert_eq!(hints[0].pitch_class, PitchClass::A);
+            assert_eq!(hints[1].pitch_class, PitchClass::C);
+            assert_eq!(hints[2].pitch_class, PitchClass::E);
+            assert!(hints[0].held);
+            assert!(hints[1].held);
+            assert!(!hints[2].held);
         }
     }
 }

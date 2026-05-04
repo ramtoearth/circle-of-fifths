@@ -1,8 +1,20 @@
-use gloo_timers::callback::Interval;
+use std::collections::HashSet;
+use gloo_timers::callback::Timeout;
 use yew::prelude::*;
 
-use crate::midi::{ChordResult, HeldNote, PlayAlongScore};
+use crate::midi::HeldNote;
 use crate::music_theory::{chord_name, diatonic_chords, roman_numeral, PitchClass, Progression};
+
+// ─────────────────────────── Pure logic ──────────────────────────────────────
+
+/// Returns `true` when every pitch class in `target` is present in at least one
+/// of the `held` notes (octave-agnostic).
+///
+/// An empty target is vacuously true (all zero elements are satisfied).
+pub fn chord_fully_held(target: &[PitchClass], held: &[HeldNote]) -> bool {
+    let held_pcs: Vec<PitchClass> = held.iter().map(|n| n.pitch_class).collect();
+    target.iter().all(|pc| held_pcs.contains(pc))
+}
 
 // ─────────────────────────── Props ───────────────────────────────────────────
 
@@ -10,13 +22,12 @@ use crate::music_theory::{chord_name, diatonic_chords, roman_numeral, PitchClass
 pub struct PlayAlongPanelProps {
     pub progression: Progression,
     pub current_chord_index: usize,
-    /// BPM read from AppState; slider in NavBar is the only control.
-    pub bpm: u32,
+    pub chords_played: u32,
+    pub showing_loop_cue: bool,
     pub held_notes: Vec<HeldNote>,
-    pub score: PlayAlongScore,
     pub on_stop: Callback<()>,
-    pub on_tick: Callback<()>,
-    pub on_record_result: Callback<ChordResult>,
+    pub on_chord_correct: Callback<()>,
+    pub on_loop_cue_done: Callback<()>,
 }
 
 // ─────────────────────────── Component ───────────────────────────────────────
@@ -26,123 +37,224 @@ pub fn play_along_panel(props: &PlayAlongPanelProps) -> Html {
     let chord_count = props.progression.chords.len();
     let chords = diatonic_chords(props.progression.key);
 
-    // Shared mutable snapshot of the values the interval closure needs.
-    // Updated on every render so the closure always sees the latest state.
-    let tick_state = use_mut_ref(|| (props.current_chord_index, props.held_notes.clone()));
-    *tick_state.borrow_mut() = (props.current_chord_index, props.held_notes.clone());
+    // Derive target PitchClasses from current chord index
+    let target_pcs: Vec<PitchClass> = props.progression.chords
+        .get(props.current_chord_index)
+        .and_then(|&degree| chords.iter().find(|c| c.degree == degree))
+        .map(|c| c.notes.to_vec())
+        .unwrap_or_default();
 
-    // Beat timer — one interval per BPM value.
-    // Dropped (and cleared) when bpm changes or the component unmounts.
+    // ── 300ms debounce for chord detection ───────────────────────────────────
     {
-        let on_tick = props.on_tick.clone();
-        let on_record_result = props.on_record_result.clone();
-        let tick_state = tick_state.clone();
-        let key = props.progression.key;
+        let on_chord_correct = props.on_chord_correct.clone();
+        let target_pcs = target_pcs.clone();
+        let held_notes = props.held_notes.clone();
+        let current_chord_index = props.current_chord_index;
 
-        use_effect_with(props.bpm, move |&bpm| {
-            let interval_ms = 60_000_u32 / bpm.max(1);
-            let chords = diatonic_chords(key);
-
-            let handle = Interval::new(interval_ms, move || {
-                let (current_chord_index, held_notes) = tick_state.borrow().clone();
-
-                // Evaluate whether all target PitchClasses were held this beat.
-                if let Some(chord) = chords.get(current_chord_index) {
-                    let held_pcs: Vec<PitchClass> =
-                        held_notes.iter().map(|n| n.pitch_class).collect();
-                    let correct = chord.notes.iter().all(|pc| held_pcs.contains(pc));
-                    on_record_result.emit(ChordResult { chord_index: current_chord_index, correct });
-                }
-
-                on_tick.emit(());
-            });
-
-            move || drop(handle)
+        use_effect_with((held_notes, current_chord_index), move |(held_notes, _idx)| {
+            let timeout = if chord_fully_held(&target_pcs, held_notes) {
+                let cb = on_chord_correct.clone();
+                Some(Timeout::new(300, move || cb.emit(())))
+            } else {
+                None
+            };
+            move || drop(timeout)
         });
     }
 
+    // ── 1.5s loop cue auto-clear ─────────────────────────────────────────────
+    {
+        let on_loop_cue_done = props.on_loop_cue_done.clone();
+        let showing_loop_cue = props.showing_loop_cue;
+
+        use_effect_with(showing_loop_cue, move |&showing| {
+            let timeout = if showing {
+                let cb = on_loop_cue_done.clone();
+                Some(Timeout::new(1500, move || cb.emit(())))
+            } else {
+                None
+            };
+            move || drop(timeout)
+        });
+    }
+
+    // ── Current chord label ───────────────────────────────────────────────────
+    let current_chord = props.progression.chords
+        .get(props.current_chord_index)
+        .and_then(|&degree| chords.iter().find(|c| c.degree == degree));
+    let chord_label = current_chord
+        .map(|c| format!("{} ({})", chord_name(c.root, c.quality), roman_numeral(c.degree, c.quality)))
+        .unwrap_or_default();
+
+    let held_pcs: HashSet<PitchClass> =
+        props.held_notes.iter().map(|n| n.pitch_class).collect();
+
+    let notes_html: Html = target_pcs.iter().map(|pc| {
+        let held = held_pcs.contains(pc);
+        let class = if held { "play-along__note play-along__note--held" } else { "play-along__note" };
+        html! { <span class={class}>{pc.name()}</span> }
+    }).collect();
+
     let on_stop = props.on_stop.reform(|_: MouseEvent| ());
-    let completed = props.score.chord_results.len() >= chord_count;
 
-    if completed {
-        // ── Results summary ──────────────────────────────────────────────────
-        let correct_count = props.score.chord_results.iter().filter(|r| r.correct).count();
-        let accuracy = if chord_count > 0 {
-            correct_count as f32 / chord_count as f32 * 100.0
-        } else {
-            0.0
-        };
+    html! {
+        <div class="play-along-panel">
+            <h2 class="play-along__title">{"Play Along"}</h2>
 
-        let results_html: Html = props.score.chord_results.iter().map(|r| {
-            let label = props.progression.chords
-                .get(r.chord_index)
-                .and_then(|&d| chords.iter().find(|c| c.degree == d))
-                .map(|c| format!("{} ({})", chord_name(c.root, c.quality), roman_numeral(c.degree, c.quality)))
-                .unwrap_or_default();
-            let class = if r.correct {
-                "play-along__result play-along__result--correct"
-            } else {
-                "play-along__result play-along__result--incorrect"
-            };
-            let icon = if r.correct { "✓" } else { "✗" };
-            html! { <li class={class}>{format!("{} {}", icon, label)}</li> }
-        }).collect();
+            if props.showing_loop_cue {
+                <div class="play-along__loop-cue">{"↺ Loop!"}</div>
+            }
 
-        html! {
-            <div class="play-along-panel play-along-panel--complete">
-                <h2 class="play-along__title">{"Play Along Complete!"}</h2>
-                <p class="play-along__accuracy">
-                    {format!("Accuracy: {:.0}%  ({}/{} chords correct)", accuracy, correct_count, chord_count)}
-                </p>
-                <ul class="play-along__results">{results_html}</ul>
-                <button class="play-along__stop-btn" onclick={on_stop}>{"Done"}</button>
+            <div class="play-along__progress">
+                {format!("Chord {} of {}", props.current_chord_index + 1, chord_count)}
             </div>
+
+            <div class="play-along__target">
+                <span class="play-along__chord-label">{chord_label}</span>
+                <div class="play-along__notes">{notes_html}</div>
+            </div>
+
+            <button class="play-along__stop-btn" onclick={on_stop}>{"Stop"}</button>
+        </div>
+    }
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::midi::HeldNote;
+    use crate::music_theory::PitchClass;
+
+    fn make_held(pitch_class: PitchClass, octave: i8) -> HeldNote {
+        // midi_note is computed from octave: note = (octave + 1) * 12 + pc_index
+        let midi_note = ((octave + 1) as u8) * 12 + pitch_class.to_index();
+        HeldNote { midi_note, velocity: 64, pitch_class, octave }
+    }
+
+    // Feature: play-along-redesign, Property 5: empty target always returns true
+    #[test]
+    fn chord_fully_held_empty_target_returns_true() {
+        let held = vec![make_held(PitchClass::C, 4)];
+        assert!(chord_fully_held(&[], &held));
+    }
+
+    #[test]
+    fn chord_fully_held_empty_target_no_held_returns_true() {
+        assert!(chord_fully_held(&[], &[]));
+    }
+
+    #[test]
+    fn chord_fully_held_all_target_pcs_present_returns_true() {
+        let target = vec![PitchClass::C, PitchClass::E, PitchClass::G];
+        let held = vec![
+            make_held(PitchClass::C, 4),
+            make_held(PitchClass::E, 4),
+            make_held(PitchClass::G, 4),
+        ];
+        assert!(chord_fully_held(&target, &held));
+    }
+
+    #[test]
+    fn chord_fully_held_one_target_pc_missing_returns_false() {
+        let target = vec![PitchClass::C, PitchClass::E, PitchClass::G];
+        let held = vec![
+            make_held(PitchClass::C, 4),
+            make_held(PitchClass::E, 4),
+        ];
+        assert!(!chord_fully_held(&target, &held));
+    }
+
+    #[test]
+    fn chord_fully_held_non_empty_target_empty_held_returns_false() {
+        let target = vec![PitchClass::C, PitchClass::E, PitchClass::G];
+        assert!(!chord_fully_held(&target, &[]));
+    }
+
+    #[test]
+    fn chord_fully_held_octave_agnostic() {
+        // Target notes played in different octaves than expected — still counts
+        let target = vec![PitchClass::C, PitchClass::E, PitchClass::G];
+        let held = vec![
+            make_held(PitchClass::C, 3),  // lower octave
+            make_held(PitchClass::E, 5),  // higher octave
+            make_held(PitchClass::G, 2),  // yet another octave
+        ];
+        assert!(chord_fully_held(&target, &held));
+    }
+
+    #[test]
+    fn chord_fully_held_extra_notes_do_not_prevent_true() {
+        // Holding extra notes beyond the target is fine
+        let target = vec![PitchClass::C, PitchClass::E, PitchClass::G];
+        let held = vec![
+            make_held(PitchClass::C, 4),
+            make_held(PitchClass::E, 4),
+            make_held(PitchClass::G, 4),
+            make_held(PitchClass::Bb, 4), // extra note
+        ];
+        assert!(chord_fully_held(&target, &held));
+    }
+
+    // Feature: play-along-redesign, Property 1: for any target PCs present in held (any octave), returns true
+    mod proptest_chord_fully_held {
+        use super::*;
+        use proptest::prelude::*;
+
+        fn arb_pitch_class() -> impl Strategy<Value = PitchClass> {
+            (0u8..12).prop_map(PitchClass::from_index)
         }
-    } else {
-        // ── Active play-along ────────────────────────────────────────────────
-        let current_chord = chords.get(props.current_chord_index);
 
-        let chord_label = current_chord.map(|c| {
-            format!("{} ({})", chord_name(c.root, c.quality), roman_numeral(c.degree, c.quality))
-        }).unwrap_or_default();
+        // Property 1: if all target PCs appear in held (possibly different octave), result is true
+        proptest! {
+            #[test]
+            fn prop_all_targets_present_returns_true(
+                target_indices in prop::collection::vec(0u8..12, 1..4),
+                octave_offsets in prop::collection::vec(-2i8..=4i8, 1..4),
+            ) {
+                let target: Vec<PitchClass> = target_indices.iter()
+                    .map(|&i| PitchClass::from_index(i))
+                    .collect();
 
-        let target_pcs: Vec<PitchClass> = current_chord
-            .map(|c| c.notes.to_vec())
-            .unwrap_or_default();
+                // Build held notes: one per target PC (possibly in a different octave)
+                let held: Vec<HeldNote> = target.iter().enumerate().map(|(i, &pc)| {
+                    let oct = octave_offsets[i % octave_offsets.len()].clamp(0, 5);
+                    make_held(pc, oct)
+                }).collect();
 
-        let held_pcs: Vec<PitchClass> =
-            props.held_notes.iter().map(|n| n.pitch_class).collect();
+                prop_assert!(chord_fully_held(&target, &held),
+                    "Expected true when all target PCs are in held");
+            }
+        }
 
-        let notes_html: Html = target_pcs.iter().map(|pc| {
-            let held = held_pcs.contains(pc);
-            let class = if held {
-                "play-along__note play-along__note--held"
-            } else {
-                "play-along__note"
-            };
-            html! { <span class={class}>{pc.name()}</span> }
-        }).collect();
+        // Property 5: empty target always returns true for any held notes
+        proptest! {
+            #[test]
+            fn prop_empty_target_always_true(
+                held_indices in prop::collection::vec((0u8..12, 3i8..6i8), 0..6),
+            ) {
+                let held: Vec<HeldNote> = held_indices.iter()
+                    .map(|&(i, oct)| make_held(PitchClass::from_index(i), oct))
+                    .collect();
+                prop_assert!(chord_fully_held(&[], &held));
+            }
+        }
 
-        let correct_so_far = props.score.chord_results.iter().filter(|r| r.correct).count();
-        let total_so_far = props.score.chord_results.len();
-
-        html! {
-            <div class="play-along-panel">
-                <h2 class="play-along__title">{"Play Along"}</h2>
-                <div class="play-along__progress">
-                    {format!("Chord {} / {}  —  {} BPM", props.current_chord_index + 1, chord_count, props.bpm)}
-                </div>
-                <div class="play-along__target">
-                    <span class="play-along__chord-label">{chord_label}</span>
-                    <div class="play-along__notes">{notes_html}</div>
-                </div>
-                if total_so_far > 0 {
-                    <div class="play-along__score">
-                        {format!("Score so far: {}/{}", correct_so_far, total_so_far)}
-                    </div>
-                }
-                <button class="play-along__stop-btn" onclick={on_stop}>{"Stop"}</button>
-            </div>
+        // Complementary: missing target PC always returns false
+        proptest! {
+            #[test]
+            fn prop_missing_target_pc_returns_false(
+                root_idx in arb_pitch_class(),
+            ) {
+                // target = [root, third, fifth] but we only hold root
+                let third = root_idx.add_semitones(4);
+                let fifth = root_idx.add_semitones(7);
+                let target = vec![root_idx, third, fifth];
+                // Only hold root — third and fifth are absent
+                let held = vec![make_held(root_idx, 4)];
+                prop_assert!(!chord_fully_held(&target, &held));
+            }
         }
     }
 }

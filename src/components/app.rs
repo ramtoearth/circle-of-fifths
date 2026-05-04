@@ -6,10 +6,10 @@ use crate::components::circle_view::CircleView;
 use crate::components::key_info_panel::KeyInfoPanel;
 use crate::components::midi_status_bar::MidiStatusBar;
 use crate::components::nav_bar::NavBar;
-use crate::components::piano_panel::PianoPanel;
+use crate::components::piano_panel::{finger_hints_for_chord, FingerHint, PianoPanel};
 use crate::components::progression_panel::ProgressionPanel;
 use crate::components::play_along_panel::PlayAlongPanel;
-use crate::midi::{detect_keys, recognize_chord, ChordResult, MidiEngine};
+use crate::midi::{detect_keys, recognize_chord, MidiEngine};
 use crate::music_theory::DiatonicChord;
 use crate::state::{AppAction, AppMode, AppState, ProgressionId, Theme};
 use crate::storage::{load_state, save_state};
@@ -354,16 +354,14 @@ pub fn app() -> Html {
         Callback::from(move |_: ()| state.dispatch(AppAction::ExitPlayAlong))
     };
 
-    let on_play_along_tick = {
+    let on_play_along_chord_correct = {
         let state = state.clone();
-        Callback::from(move |_: ()| state.dispatch(AppAction::PlayAlongTick))
+        Callback::from(move |_: ()| state.dispatch(AppAction::PlayAlongChordCorrect))
     };
 
-    let on_play_along_record_result = {
+    let on_play_along_loop_cue_done = {
         let state = state.clone();
-        Callback::from(move |result: ChordResult| {
-            state.dispatch(AppAction::RecordPlayAlongChordResult(result))
-        })
+        Callback::from(move |_: ()| state.dispatch(AppAction::PlayAlongLoopCueDone))
     };
 
     let on_clear_window = {
@@ -400,18 +398,26 @@ pub fn app() -> Html {
         })
     };
 
-    // ── Derived: practice_target for PianoPanel ───────────────────────────────
-    let practice_target: Option<Vec<crate::music_theory::PitchClass>> =
+    // ── Derived: practice_target + finger_hints for PianoPanel ──────────────
+    let (practice_target, finger_hints): (Option<Vec<crate::music_theory::PitchClass>>, Option<Vec<FingerHint>>) =
         if let Some(ref pa) = state.play_along_state {
-            crate::data::find_progression(pa.progression_id).and_then(|prog| {
+            let result = crate::data::find_progression(pa.progression_id).and_then(|prog| {
                 let chords = crate::music_theory::diatonic_chords(prog.key);
                 prog.chords
                     .get(pa.current_chord_index)
                     .and_then(|&d| chords.iter().find(|c| c.degree == d))
-                    .map(|c| c.notes.to_vec())
-            })
+                    .map(|c| {
+                        let notes = c.notes.to_vec();
+                        let hints = finger_hints_for_chord(c, &state.held_notes);
+                        (notes, hints)
+                    })
+            });
+            match result {
+                Some((notes, hints)) => (Some(notes), Some(hints)),
+                None => (None, None),
+            }
         } else {
-            None
+            (None, None)
         };
 
     // ── Theme class ──────────────────────────────────────────────────────────
@@ -458,12 +464,12 @@ pub fn app() -> Html {
                         <PlayAlongPanel
                             progression={progression}
                             current_chord_index={pa.current_chord_index}
-                            bpm={state.bpm}
+                            chords_played={pa.chords_played}
+                            showing_loop_cue={pa.showing_loop_cue}
                             held_notes={state.held_notes.clone()}
-                            score={pa.score.clone()}
                             on_stop={on_play_along_stop}
-                            on_tick={on_play_along_tick}
-                            on_record_result={on_play_along_record_result}
+                            on_chord_correct={on_play_along_chord_correct}
+                            on_loop_cue_done={on_play_along_loop_cue_done}
                         />
                     }
                 }
@@ -507,6 +513,7 @@ pub fn app() -> Html {
                     on_octave_shift={on_octave_shift}
                     held_notes={state.held_notes.clone()}
                     practice_target={practice_target}
+                    finger_hints={finger_hints}
                 />
             </div>
         </div>

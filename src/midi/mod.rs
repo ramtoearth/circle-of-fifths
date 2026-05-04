@@ -70,20 +70,6 @@ pub struct KeySuggestion {
     pub score: u8,   // count of rolling-window PitchClasses in this key's scale (0–7)
 }
 
-// ─────────────────────────── Scoring types ────────────────────────────────
-
-/// Play-along per-chord result
-#[derive(Clone, Debug, PartialEq)]
-pub struct ChordResult {
-    pub chord_index: usize,
-    pub correct: bool,   // all target PitchClasses were present in held notes
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct PlayAlongScore {
-    pub chord_results: Vec<ChordResult>,
-}
-
 // ─────────────────────────── Chord Recognition (Task 3) ─────────────────────
 
 /// Chord dictionary: (name_suffix, semitone_intervals_from_root).

@@ -3,7 +3,7 @@ use yew::Reducible;
 
 use crate::music_theory::{Key, DiatonicChord, ChordHighlight, PitchClass, diatonic_chords};
 use crate::midi::{
-    HeldNote, KeySuggestion, MidiStatus, PlayAlongScore, RecognizedChord,
+    HeldNote, KeySuggestion, MidiStatus, RecognizedChord,
 };
 
 // Re-export progression types that now live in music_theory, so that existing
@@ -31,9 +31,8 @@ impl Default for AppMode {
 pub struct PlayAlongState {
     pub progression_id: ProgressionId,
     pub current_chord_index: usize,
-    pub score: PlayAlongScore,
-    pub started_at_ms: f64,
-    pub pre_play_along_metronome_active: bool,
+    pub chords_played: u32,
+    pub showing_loop_cue: bool,
 }
 
 /// Top-level app state.
@@ -119,8 +118,8 @@ pub enum AppAction {
     ClearRollingWindow,
     EnterPlayAlong(ProgressionId),
     ExitPlayAlong,
-    PlayAlongTick,
-    RecordPlayAlongChordResult(crate::midi::ChordResult),
+    PlayAlongChordCorrect,
+    PlayAlongLoopCueDone,
     ToggleMetronome,
     /// Dispatched by a timer callback in `on_progression_click` to advance the piano highlight
     /// in lockstep with audio playback. Carries (progression_id, target_index) so the reducer
@@ -363,61 +362,58 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             if state.app_mode != AppMode::Normal {
                 return state;
             }
-            let pre = state.metronome_active;
+            let chord_count = crate::data::find_progression(progression_id)
+                .map(|p| p.chords.len())
+                .unwrap_or(0);
+            if chord_count == 0 {
+                return state;
+            }
             AppState {
                 app_mode: AppMode::PlayAlong,
-                metronome_active: true,
                 play_along_state: Some(PlayAlongState {
                     progression_id,
                     current_chord_index: 0,
-                    score: PlayAlongScore::default(),
-                    started_at_ms: 0.0,
-                    pre_play_along_metronome_active: pre,
+                    chords_played: 0,
+                    showing_loop_cue: false,
                 }),
                 ..state
             }
         }
 
-        // Property 16: resets to Normal, restores metronome
-        AppAction::ExitPlayAlong => {
-            let metronome_active = state.play_along_state
-                .as_ref()
-                .map(|ps| ps.pre_play_along_metronome_active)
-                .unwrap_or(state.metronome_active);
+        AppAction::ExitPlayAlong => AppState {
+            app_mode: AppMode::Normal,
+            play_along_state: None,
+            ..state
+        },
+
+        AppAction::PlayAlongChordCorrect => {
+            let Some(ref pa) = state.play_along_state else { return state; };
+            let Some(progression) = crate::data::find_progression(pa.progression_id) else { return state; };
+            let chord_count = progression.chords.len();
+            if chord_count == 0 { return state; }
+            let next_index = (pa.current_chord_index + 1) % chord_count;
+            let looped = next_index == 0;
+            let highlighted_chord = chord_highlight_at(&progression, next_index);
             AppState {
-                app_mode: AppMode::Normal,
-                play_along_state: None,
-                metronome_active,
+                play_along_state: Some(PlayAlongState {
+                    progression_id: pa.progression_id,
+                    current_chord_index: next_index,
+                    chords_played: pa.chords_played + 1,
+                    showing_loop_cue: looped,
+                }),
+                highlighted_chord,
                 ..state
             }
         }
 
-        AppAction::PlayAlongTick => {
-            if let Some(ref pa) = state.play_along_state {
-                if let Some(progression) = crate::data::find_progression(pa.progression_id) {
-                    let next_idx = pa.current_chord_index + 1;
-                    if next_idx >= progression.chords.len() {
-                        // Progression complete — stay on last chord, UI handles exit
-                        return state;
-                    }
-                    let mut new_pa = pa.clone();
-                    new_pa.current_chord_index = next_idx;
-                    AppState { play_along_state: Some(new_pa), ..state }
-                } else {
-                    state
-                }
-            } else {
-                state
-            }
-        }
-
-        AppAction::RecordPlayAlongChordResult(result) => {
-            if let Some(ref pa) = state.play_along_state {
-                let mut new_pa = pa.clone();
-                new_pa.score.chord_results.push(result);
-                AppState { play_along_state: Some(new_pa), ..state }
-            } else {
-                state
+        AppAction::PlayAlongLoopCueDone => {
+            let Some(ref pa) = state.play_along_state else { return state; };
+            AppState {
+                play_along_state: Some(PlayAlongState {
+                    showing_loop_cue: false,
+                    ..pa.clone()
+                }),
+                ..state
             }
         }
 
@@ -1068,7 +1064,7 @@ mod tests {
 
     mod property_tests {
         use super::*;
-        use crate::midi::{HeldNote, KeySuggestion, PlayAlongScore};
+        use crate::midi::{HeldNote, KeySuggestion};
         use proptest::prelude::*;
 
         fn any_midi_note() -> impl Strategy<Value = u8> { 0u8..=127u8 }
@@ -1079,16 +1075,14 @@ mod tests {
             HeldNote::from_midi(midi_note, velocity)
         }
 
-        fn play_along_state_in(metronome: bool) -> AppState {
+        fn play_along_state_in(_metronome: bool) -> AppState {
             AppState {
                 app_mode: AppMode::PlayAlong,
-                metronome_active: true,
                 play_along_state: Some(PlayAlongState {
                     progression_id: 0,
                     current_chord_index: 0,
-                    score: PlayAlongScore::default(),
-                    started_at_ms: 0.0,
-                    pre_play_along_metronome_active: metronome,
+                    chords_played: 0,
+                    showing_loop_cue: false,
                 }),
                 ..AppState::default()
             }
