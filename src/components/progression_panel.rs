@@ -17,6 +17,7 @@ pub struct ProgressionPanelProps {
     pub on_favorite_toggle: Callback<ProgressionId>,
     pub midi_status: MidiStatus,
     pub on_enter_play_along: Callback<ProgressionId>,
+    pub on_enter_builder: Callback<()>,
 }
 
 // ─────────────────────────── Helpers ─────────────────────────────────────────
@@ -228,6 +229,13 @@ pub fn progression_panel(props: &ProgressionPanelProps) -> Html {
             <ul class="progression-panel__list">
                 {items}
             </ul>
+            <button class="progression-panel__build-custom-btn"
+                    onclick={
+                        let cb = props.on_enter_builder.clone();
+                        Callback::from(move |_: MouseEvent| cb.emit(()))
+                    }>
+                {"Build Custom Progression"}
+            </button>
         </div>
     }
 }

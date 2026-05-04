@@ -1,5 +1,6 @@
 pub mod app;
 pub mod circle_view;
+pub mod custom_progression_builder;
 pub mod midi_status_bar;
 pub mod key_info_panel;
 pub mod nav_bar;

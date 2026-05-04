@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use yew::Reducible;
 
-use crate::music_theory::{Key, DiatonicChord, ChordHighlight, PitchClass, diatonic_chords};
+use crate::music_theory::{Key, DiatonicChord, ChordHighlight, PitchClass, ScaleDegree, diatonic_chords};
 use crate::midi::{
     HeldNote, KeySuggestion, MidiStatus, RecognizedChord,
 };
@@ -21,6 +21,7 @@ pub enum Theme { Dark, Light }
 pub enum AppMode {
     Normal,
     PlayAlong,
+    CustomProgressionBuilder,
 }
 
 impl Default for AppMode {
@@ -29,10 +30,11 @@ impl Default for AppMode {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlayAlongState {
-    pub progression_id: ProgressionId,
+    pub progression: Progression,
     pub current_chord_index: usize,
     pub chords_played: u32,
     pub showing_loop_cue: bool,
+    pub from_builder: bool,
 }
 
 /// Top-level app state.
@@ -57,6 +59,7 @@ pub struct AppState {
     pub key_suggestions: Vec<KeySuggestion>,
     pub app_mode: AppMode,
     pub play_along_state: Option<PlayAlongState>,
+    pub builder_progression: Vec<ScaleDegree>,
     pub metronome_active: bool,
     pub is_playing: bool,
     pub auto_playback_enabled: bool,
@@ -84,6 +87,7 @@ impl Default for AppState {
             key_suggestions: Vec::new(),
             app_mode: AppMode::Normal,
             play_along_state: None,
+            builder_progression: Vec::new(),
             metronome_active: false,
             is_playing: false,
             auto_playback_enabled: true,
@@ -127,6 +131,13 @@ pub enum AppAction {
     AdvanceProgressionChord(ProgressionId, usize),
     SetPlaying(bool),
     ToggleAutoPlayback,
+    // ── Custom Progression Builder ────────────────────────────────────────
+    EnterBuilder,
+    ExitBuilder,
+    BuilderToggle(ScaleDegree),
+    BuilderShiftAppend(ScaleDegree),
+    BuilderReset,
+    EnterPlayAlongCustom,
 }
 
 // ─────────────────────────── Constants ───────────────────────────────────────
@@ -362,44 +373,47 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             if state.app_mode != AppMode::Normal {
                 return state;
             }
-            let chord_count = crate::data::find_progression(progression_id)
-                .map(|p| p.chords.len())
-                .unwrap_or(0);
-            if chord_count == 0 {
-                return state;
-            }
+            let progression = match crate::data::find_progression(progression_id) {
+                Some(p) if !p.chords.is_empty() => p,
+                _ => return state,
+            };
+            let highlighted_chord = chord_highlight_at(&progression, 0);
             AppState {
                 app_mode: AppMode::PlayAlong,
                 play_along_state: Some(PlayAlongState {
-                    progression_id,
+                    progression,
                     current_chord_index: 0,
                     chords_played: 0,
                     showing_loop_cue: false,
+                    from_builder: false,
                 }),
+                highlighted_chord,
                 ..state
             }
         }
 
-        AppAction::ExitPlayAlong => AppState {
-            app_mode: AppMode::Normal,
-            play_along_state: None,
-            ..state
-        },
+        AppAction::ExitPlayAlong => {
+            let from_builder = state.play_along_state.as_ref().map(|s| s.from_builder).unwrap_or(false);
+            AppState {
+                app_mode: if from_builder { AppMode::CustomProgressionBuilder } else { AppMode::Normal },
+                play_along_state: None,
+                ..state
+            }
+        }
 
         AppAction::PlayAlongChordCorrect => {
             let Some(ref pa) = state.play_along_state else { return state; };
-            let Some(progression) = crate::data::find_progression(pa.progression_id) else { return state; };
-            let chord_count = progression.chords.len();
+            let chord_count = pa.progression.chords.len();
             if chord_count == 0 { return state; }
             let next_index = (pa.current_chord_index + 1) % chord_count;
             let looped = next_index == 0;
-            let highlighted_chord = chord_highlight_at(&progression, next_index);
+            let highlighted_chord = chord_highlight_at(&pa.progression, next_index);
             AppState {
                 play_along_state: Some(PlayAlongState {
-                    progression_id: pa.progression_id,
                     current_chord_index: next_index,
                     chords_played: pa.chords_played + 1,
                     showing_loop_cue: looped,
+                    ..pa.clone()
                 }),
                 highlighted_chord,
                 ..state
@@ -455,6 +469,68 @@ pub fn app_reducer(state: AppState, action: AppAction) -> AppState {
             auto_playback_enabled: !state.auto_playback_enabled,
             ..state
         },
+
+        // ── Custom Progression Builder ────────────────────────────────────
+        AppAction::EnterBuilder => AppState {
+            app_mode: AppMode::CustomProgressionBuilder,
+            builder_progression: vec![],
+            ..state
+        },
+
+        AppAction::ExitBuilder => AppState {
+            app_mode: AppMode::Normal,
+            builder_progression: vec![],
+            ..state
+        },
+
+        AppAction::BuilderToggle(degree) => {
+            let mut chords = state.builder_progression.clone();
+            if let Some(pos) = chords.iter().rposition(|&d| d == degree) {
+                chords.remove(pos);
+            } else if chords.len() < 16 {
+                chords.push(degree);
+            }
+            AppState { builder_progression: chords, ..state }
+        }
+
+        AppAction::BuilderShiftAppend(degree) => {
+            let mut chords = state.builder_progression.clone();
+            if chords.len() < 16 {
+                chords.push(degree);
+            }
+            AppState { builder_progression: chords, ..state }
+        }
+
+        AppAction::BuilderReset => AppState {
+            builder_progression: vec![],
+            ..state
+        },
+
+        AppAction::EnterPlayAlongCustom => {
+            if state.midi_status != crate::midi::MidiStatus::Connected { return state; }
+            if state.builder_progression.is_empty() { return state; }
+            let key = match state.selected_key { Some(k) => k, None => return state };
+            let progression = Progression {
+                id: u32::MAX,
+                key,
+                chords: state.builder_progression.clone(),
+                tags: vec![ProgressionTag::Custom],
+                borrowed_chord: None,
+            };
+            let highlighted_chord = chord_highlight_at(&progression, 0);
+            AppState {
+                app_mode: AppMode::PlayAlong,
+                play_along_state: Some(PlayAlongState {
+                    progression,
+                    current_chord_index: 0,
+                    chords_played: 0,
+                    showing_loop_cue: false,
+                    from_builder: true,
+                }),
+                highlighted_chord,
+                ..state
+            }
+        }
     }
 }
 
@@ -1076,13 +1152,15 @@ mod tests {
         }
 
         fn play_along_state_in(_metronome: bool) -> AppState {
+            let progression = crate::data::find_progression(0).unwrap();
             AppState {
                 app_mode: AppMode::PlayAlong,
                 play_along_state: Some(PlayAlongState {
-                    progression_id: 0,
+                    progression,
                     current_chord_index: 0,
                     chords_played: 0,
                     showing_loop_cue: false,
+                    from_builder: false,
                 }),
                 ..AppState::default()
             }

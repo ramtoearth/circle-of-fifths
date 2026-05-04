@@ -866,6 +866,24 @@ svg text {
   gap: 12px;
 }
 
+.play-along__stop-btn {
+  padding: 6px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--incorrect);
+  background: color-mix(in srgb, var(--incorrect) 15%, transparent);
+  color: var(--incorrect);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  align-self: flex-start;
+}
+
+.play-along__stop-btn:hover {
+  background: var(--incorrect);
+  color: #fff;
+}
+
 .play-along__loop-cue {
   padding: 8px 16px;
   border-radius: 6px;
@@ -939,3 +957,172 @@ svg text {
   transition: background 0.12s, border-color 0.12s;
 }
 .midi-status__clear-btn:hover { background: var(--surface); border-color: var(--accent); color: var(--text); }
+
+/* ── Custom Progression Builder ─────────────────────────────────────────────── */
+
+.builder-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+}
+
+.builder-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.builder-panel__header h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.builder-panel__slots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 36px;
+    padding: 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+}
+
+.builder-panel__slot {
+    background: rgba(120, 180, 255, 0.2);
+    border: 1px solid rgba(120, 180, 255, 0.5);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.82em;
+    font-weight: 600;
+}
+
+.builder-panel__placeholder {
+    color: rgba(255,255,255,0.4);
+    font-style: italic;
+    font-size: 0.85em;
+    align-self: center;
+}
+
+.chord-tiles {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+}
+
+.chord-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 4px;
+    border-radius: 6px;
+    border: 2px solid rgba(120, 180, 255, 0.4);
+    background: rgba(120, 180, 255, 0.1);
+    cursor: pointer;
+    font-weight: 600;
+    position: relative;
+    transition: background 0.1s ease;
+    user-select: none;
+    font-size: 0.82em;
+}
+
+.chord-tile:hover {
+    background: rgba(120, 180, 255, 0.28);
+}
+
+.chord-tile__roman {
+    font-size: 1em;
+}
+
+.chord-tile__name {
+    font-size: 0.85em;
+    opacity: 0.75;
+    margin-top: 2px;
+}
+
+.chord-tile__badge {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-color, #7cb8ff);
+    color: #000;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.builder-panel__actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.builder-panel__actions button,
+.builder-panel__header .builder-back-btn,
+.progression-panel__build-custom-btn {
+    padding: 4px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.builder-panel__actions button:hover,
+.builder-panel__header .builder-back-btn:hover,
+.progression-panel__build-custom-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-accent);
+}
+
+.builder-panel__actions button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.builder-panel__actions button:disabled:hover {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.builder-panel__start-btn {
+    font-weight: 700;
+    border-color: var(--accent) !important;
+}
+
+.progression-panel__build-custom-btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    text-align: center;
+}
+
+/* Light theme overrides for builder */
+.light .builder-panel__slot {
+    background: rgba(60, 120, 220, 0.15);
+    border-color: rgba(60, 120, 220, 0.4);
+}
+
+.light .chord-tile {
+    border-color: rgba(60, 120, 220, 0.4);
+    background: rgba(60, 120, 220, 0.08);
+}
+
+.light .chord-tile:hover {
+    background: rgba(60, 120, 220, 0.2);
+}
+
+.light .builder-panel__placeholder {
+    color: rgba(0,0,0,0.35);
+}

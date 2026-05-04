@@ -7,6 +7,7 @@ use crate::components::key_info_panel::KeyInfoPanel;
 use crate::components::midi_status_bar::MidiStatusBar;
 use crate::components::nav_bar::NavBar;
 use crate::components::piano_panel::{finger_hints_for_chord, FingerHint, PianoPanel};
+use crate::components::custom_progression_builder::CustomProgressionBuilderPanel;
 use crate::components::progression_panel::ProgressionPanel;
 use crate::components::play_along_panel::PlayAlongPanel;
 use crate::midi::{detect_keys, recognize_chord, MidiEngine};
@@ -364,6 +365,31 @@ pub fn app() -> Html {
         Callback::from(move |_: ()| state.dispatch(AppAction::PlayAlongLoopCueDone))
     };
 
+    let on_enter_builder = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::EnterBuilder))
+    };
+    let on_exit_builder = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::ExitBuilder))
+    };
+    let on_builder_toggle = {
+        let state = state.clone();
+        Callback::from(move |d: crate::music_theory::ScaleDegree| state.dispatch(AppAction::BuilderToggle(d)))
+    };
+    let on_builder_shift_append = {
+        let state = state.clone();
+        Callback::from(move |d: crate::music_theory::ScaleDegree| state.dispatch(AppAction::BuilderShiftAppend(d)))
+    };
+    let on_builder_reset = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::BuilderReset))
+    };
+    let on_start_play_along_custom = {
+        let state = state.clone();
+        Callback::from(move |_: ()| state.dispatch(AppAction::EnterPlayAlongCustom))
+    };
+
     let on_clear_window = {
         let state = state.clone();
         Callback::from(move |_: ()| state.dispatch(AppAction::ClearRollingWindow))
@@ -401,17 +427,16 @@ pub fn app() -> Html {
     // ── Derived: practice_target + finger_hints for PianoPanel ──────────────
     let (practice_target, finger_hints): (Option<Vec<crate::music_theory::PitchClass>>, Option<Vec<FingerHint>>) =
         if let Some(ref pa) = state.play_along_state {
-            let result = crate::data::find_progression(pa.progression_id).and_then(|prog| {
-                let chords = crate::music_theory::diatonic_chords(prog.key);
-                prog.chords
-                    .get(pa.current_chord_index)
-                    .and_then(|&d| chords.iter().find(|c| c.degree == d))
-                    .map(|c| {
-                        let notes = c.notes.to_vec();
-                        let hints = finger_hints_for_chord(c, &state.held_notes);
-                        (notes, hints)
-                    })
-            });
+            let prog = &pa.progression;
+            let chords = crate::music_theory::diatonic_chords(prog.key);
+            let result = prog.chords
+                .get(pa.current_chord_index)
+                .and_then(|&d| chords.iter().find(|c| c.degree == d))
+                .map(|c| {
+                    let notes = c.notes.to_vec();
+                    let hints = finger_hints_for_chord(c, &state.held_notes);
+                    (notes, hints)
+                });
             match result {
                 Some((notes, hints)) => (Some(notes), Some(hints)),
                 None => (None, None),
@@ -460,18 +485,37 @@ pub fn app() -> Html {
 
             if state.app_mode == AppMode::PlayAlong {
                 if let Some(ref pa) = state.play_along_state {
-                    if let Some(progression) = crate::data::find_progression(pa.progression_id) {
-                        <PlayAlongPanel
-                            progression={progression}
-                            current_chord_index={pa.current_chord_index}
-                            chords_played={pa.chords_played}
-                            showing_loop_cue={pa.showing_loop_cue}
-                            held_notes={state.held_notes.clone()}
-                            on_stop={on_play_along_stop}
-                            on_chord_correct={on_play_along_chord_correct}
-                            on_loop_cue_done={on_play_along_loop_cue_done}
+                    <PlayAlongPanel
+                        progression={pa.progression.clone()}
+                        current_chord_index={pa.current_chord_index}
+                        chords_played={pa.chords_played}
+                        showing_loop_cue={pa.showing_loop_cue}
+                        held_notes={state.held_notes.clone()}
+                        on_stop={on_play_along_stop}
+                        on_chord_correct={on_play_along_chord_correct}
+                        on_loop_cue_done={on_play_along_loop_cue_done}
+                    />
+                }
+            } else if state.app_mode == AppMode::CustomProgressionBuilder {
+                if let Some(key) = state.selected_key {
+                    <div class="main-layout">
+                        <CircleView
+                            selected_key={state.selected_key}
+                            on_segment_click={on_segment_click.clone()}
                         />
-                    }
+                        <div class="side-panel">
+                            <CustomProgressionBuilderPanel
+                                selected_key={key}
+                                working_progression={state.builder_progression.clone()}
+                                midi_status={state.midi_status}
+                                on_toggle={on_builder_toggle}
+                                on_shift_append={on_builder_shift_append}
+                                on_reset={on_builder_reset}
+                                on_start_play_along={on_start_play_along_custom}
+                                on_back={on_exit_builder}
+                            />
+                        </div>
+                    </div>
                 }
             } else {
                 <div class="main-layout">
@@ -494,6 +538,7 @@ pub fn app() -> Html {
                             on_favorite_toggle={on_favorite_toggle}
                             midi_status={state.midi_status}
                             on_enter_play_along={on_enter_play_along}
+                            on_enter_builder={on_enter_builder}
                         />
                     </div>
                 </div>
